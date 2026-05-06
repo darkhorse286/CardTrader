@@ -1,0 +1,49 @@
+model
+  schema 1.1
+
+# Expires-at is passed in check context as current_time. Used for time-bound delegations.
+condition not_expired(current_time: timestamp, expires_at: timestamp) {
+  current_time < expires_at
+}
+
+type user
+
+# card_instance is the owned object. Ownership tuples attach here, not to the card archetype.
+type card_instance
+  relations
+    define owner: [user]
+    define viewer: [user]
+    # An instance can belong to multiple collections; can_view from collection evaluates all of them.
+    define collection: [collection]
+    define can_view: owner or viewer or can_view from collection
+    define can_manage: owner
+    define can_trade: owner
+
+# collection groups card_instances. viewer accepts user:* for public access.
+type collection
+  relations
+    define owner: [user]
+    define viewer: [user, user:*]
+    define can_view: owner or viewer
+    define can_manage: owner
+
+type trade_proposal
+  relations
+    define initiator: [user]
+    define recipient: [user]
+    # Resolves to the delegator of an active delegation — gives parent supervisory access.
+    define supervisor: [delegation#active_delegator]
+    # Dealer assigned to facilitate this specific trade.
+    define facilitator: [user]
+    define can_view: initiator or recipient or supervisor or facilitator
+    define can_accept: recipient
+    define can_cancel: initiator or supervisor
+
+# delegation is a first-class entity for parent-managed accounts.
+type delegation
+  relations
+    define delegator: [user]
+    define delegatee: [user]
+    # [user] covers indefinite delegations; [user with not_expired] covers time-bound ones.
+    # Never use only [user with not_expired] — that prevents writing unconditioned tuples.
+    define active_delegator: [user, user with not_expired]
