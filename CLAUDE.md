@@ -26,6 +26,18 @@ See `/docs/architecture.md` for the full folder hierarchy.
   Ownership tuples attach to instances, not archetypes.
 - `Delegation` is a first-class entity for parent-managed accounts.
 
+## Testing conventions
+- `CardTrader.Authorization.Tests` runs against a real OpenFGA instance via 
+  Testcontainers. Never mock the FGA engine in this project — doing so 
+  invalidates the adversarial evidence.
+- `CardTrader.Application.Tests` mocks `IAuthorizationService`. Tests verify 
+  service behavior given an allow or deny decision, not the decision itself.
+- `CardTrader.Integration.Tests` uses real infrastructure throughout.
+- Every public interface gets at least one test at its own layer before 
+  the layer above it is built.
+- The `Adversarial/` folder in Authorization.Tests is the QED evidence battery. 
+  All scenarios in the evidence section of the PoC must have a passing test here.
+
 ## Running locally
 - `docker compose -f docker/docker-compose.yml up -d` starts Postgres + OpenFGA
 - `dotnet run --project src/CardTrader.Web` starts the Blazor app
