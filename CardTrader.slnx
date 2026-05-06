@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CardTrader.Application/CardTrader.Application.csproj" />
+    <Project Path="src/CardTrader.Authorization/CardTrader.Authorization.csproj" />
+    <Project Path="src/CardTrader.Domain/CardTrader.Domain.csproj" />
+    <Project Path="src/CardTrader.Infrastructure/CardTrader.Infrastructure.csproj" />
+    <Project Path="src/CardTrader.Web/CardTrader.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CardTrader.Application.Tests/CardTrader.Application.Tests.csproj" />
+    <Project Path="tests/CardTrader.Authorization.Tests/CardTrader.Authorization.Tests.csproj" />
+    <Project Path="tests/CardTrader.Integration.Tests/CardTrader.Integration.Tests.csproj" />
+  </Folder>
+</Solution>
