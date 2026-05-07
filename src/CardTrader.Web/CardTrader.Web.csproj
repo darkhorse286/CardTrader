@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CardTrader.Application\CardTrader.Application.csproj" />
     <ProjectReference Include="..\CardTrader.Authorization\CardTrader.Authorization.csproj" />
+    <ProjectReference Include="..\CardTrader.Infrastructure\CardTrader.Infrastructure.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

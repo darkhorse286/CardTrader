@@ -1,6 +1,9 @@
+using CardTrader.Infrastructure;
 using CardTrader.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddInfrastructure(builder.Configuration);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
