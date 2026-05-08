@@ -92,8 +92,8 @@ public sealed class DelegationTupleWriterTests
                 t[0].Relation == FgaRelations.ActiveDelegator &&
                 t[0].Object == $"{FgaTypes.Delegation}:{id}" &&
                 t[0].Condition != null &&
-                t[0].Condition.Name == FgaConditions.NotExpired &&
-                t[0].Condition.Context != null),
+                t[0].Condition!.Name == FgaConditions.NotExpired &&
+                t[0].Condition!.Context != null),
             Arg.Any<CancellationToken>());
     }
 

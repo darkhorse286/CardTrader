@@ -1,8 +1,10 @@
+using CardTrader.Application;
 using CardTrader.Infrastructure;
 using CardTrader.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // Add services to the container.
