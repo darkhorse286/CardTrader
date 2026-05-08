@@ -3,6 +3,7 @@
     <Project Path="src/CardTrader.Application/CardTrader.Application.csproj" />
     <Project Path="src/CardTrader.Authorization/CardTrader.Authorization.csproj" />
     <Project Path="src/CardTrader.Domain/CardTrader.Domain.csproj" />
+    <Project Path="src/CardTrader.Identity/CardTrader.Identity.csproj" />
     <Project Path="src/CardTrader.Infrastructure/CardTrader.Infrastructure.csproj" />
     <Project Path="src/CardTrader.Web/CardTrader.Web.csproj" />
   </Folder>
