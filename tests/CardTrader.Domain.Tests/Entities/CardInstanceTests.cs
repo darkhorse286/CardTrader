@@ -16,17 +16,18 @@ public sealed class CardInstanceTests
     [Fact]
     public void Create_SetsProperties()
     {
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 42);
 
         Assert.Equal(InstanceId, instance.Id);
         Assert.Equal(CardId, instance.CardId);
         Assert.Equal(OwnerId, instance.OwnerId);
+        Assert.Equal(42, instance.PrintNumber);
     }
 
     [Fact]
     public void Create_RaisesCardInstanceCreated()
     {
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
 
         var evt = Assert.Single(instance.DomainEvents);
         var created = Assert.IsType<CardInstanceCreated>(evt);
@@ -35,12 +36,19 @@ public sealed class CardInstanceTests
         Assert.Equal(OwnerId, created.OwnerId);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Create_PrintNumberLessThanOne_Throws(int printNumber)
+        => Assert.Throws<ArgumentOutOfRangeException>(
+            () => CardInstance.Create(InstanceId, CardId, OwnerId, printNumber));
+
     // ── AddToCollection ──────────────────────────────────────────────────────
 
     [Fact]
     public void AddToCollection_RaisesCardInstanceAddedToCollection()
     {
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
         instance.ClearDomainEvents();
 
         instance.AddToCollection(CollectionId);
@@ -56,7 +64,7 @@ public sealed class CardInstanceTests
     [Fact]
     public void RemoveFromCollection_RaisesCardInstanceRemovedFromCollection()
     {
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
         instance.ClearDomainEvents();
 
         instance.RemoveFromCollection(CollectionId);
@@ -74,7 +82,7 @@ public sealed class CardInstanceTests
     {
         var collA = CollectionId.New();
         var collB = CollectionId.New();
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
         instance.ClearDomainEvents();
 
         instance.AddToCollection(collA);
@@ -90,7 +98,7 @@ public sealed class CardInstanceTests
     [Fact]
     public void ClearDomainEvents_EmptiesList()
     {
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
         Assert.NotEmpty(instance.DomainEvents);
 
         instance.ClearDomainEvents();

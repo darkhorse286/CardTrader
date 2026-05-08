@@ -15,7 +15,8 @@ public class CardInstanceRepositoryTests
 
     private static Card SeedCard(AppDbContext ctx)
     {
-        var card = Card.Create(CardId.New(), "Lightning Bolt", "Alpha", "Common");
+        var card = Card.Create(CardId.New(), "Lightning Bolt", "Alpha", "Common",
+            playerName: "Garfield", printRun: 1200);
         ctx.Cards.Add(card);
         ctx.SaveChanges();
         return card;
@@ -44,7 +45,7 @@ public class CardInstanceRepositoryTests
         {
             var card = SeedCard(writeCtx);
             cardId = card.Id;
-            var instance = CardInstance.Create(instanceId, cardId, ownerId);
+            var instance = CardInstance.Create(instanceId, cardId, ownerId, printNumber: 42);
             await new CardInstanceRepository(writeCtx).AddAsync(instance);
         }
 
@@ -53,6 +54,7 @@ public class CardInstanceRepositoryTests
         Assert.NotNull(stored);
         Assert.Equal(cardId, stored.CardId);
         Assert.Equal(ownerId, stored.OwnerId);
+        Assert.Equal(42, stored.PrintNumber);
     }
 
     [Fact]
@@ -65,7 +67,7 @@ public class CardInstanceRepositoryTests
         await using (var writeCtx = CreateContext(dbName))
         {
             var card = SeedCard(writeCtx);
-            var instance = CardInstance.Create(instanceId, card.Id, ownerId);
+            var instance = CardInstance.Create(instanceId, card.Id, ownerId, printNumber: 7);
             await new CardInstanceRepository(writeCtx).AddAsync(instance);
         }
 
@@ -75,5 +77,6 @@ public class CardInstanceRepositoryTests
         Assert.NotNull(result);
         Assert.Equal(instanceId, result.Id);
         Assert.Equal(ownerId, result.OwnerId);
+        Assert.Equal(7, result.PrintNumber);
     }
 }

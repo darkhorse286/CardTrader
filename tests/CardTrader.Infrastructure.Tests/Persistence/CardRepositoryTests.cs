@@ -13,6 +13,9 @@ public class CardRepositoryTests
             .UseInMemoryDatabase(dbName)
             .Options);
 
+    private static Card MakeCard(string name = "Black Lotus") =>
+        Card.Create(CardId.New(), name, "Alpha", "Rare", playerName: "Garfield", printRun: 100);
+
     [Fact]
     public async Task GetByIdAsync_ReturnsNull_WhenNotFound()
     {
@@ -28,7 +31,10 @@ public class CardRepositoryTests
     public async Task AddAsync_PersistsCard()
     {
         var dbName = nameof(AddAsync_PersistsCard);
-        var card = Card.Create(CardId.New(), "Black Lotus", "Alpha", "Rare");
+        var card = Card.Create(CardId.New(), "Black Lotus", "Alpha", "Rare",
+            playerName: "Garfield", printRun: 10,
+            playerPosition: "Midfield", teamName: "Arsenal",
+            imageUrl: "https://example.com/img.png");
 
         await using (var writeCtx = CreateContext(dbName))
             await new CardRepository(writeCtx).AddAsync(card);
@@ -39,13 +45,18 @@ public class CardRepositoryTests
         Assert.Equal("Black Lotus", stored.Name);
         Assert.Equal("Alpha", stored.SetName);
         Assert.Equal("Rare", stored.Rarity);
+        Assert.Equal("Garfield", stored.PlayerName);
+        Assert.Equal(10, stored.PrintRun);
+        Assert.Equal("Midfield", stored.PlayerPosition);
+        Assert.Equal("Arsenal", stored.TeamName);
+        Assert.Equal("https://example.com/img.png", stored.ImageUrl);
     }
 
     [Fact]
     public async Task GetByIdAsync_ReturnsCard_WhenFound()
     {
         var dbName = nameof(GetByIdAsync_ReturnsCard_WhenFound);
-        var card = Card.Create(CardId.New(), "Counterspell", "Beta", "Uncommon");
+        var card = MakeCard("Counterspell");
 
         await using (var writeCtx = CreateContext(dbName))
             await new CardRepository(writeCtx).AddAsync(card);
