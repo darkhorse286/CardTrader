@@ -1,0 +1,147 @@
+@page "/collections"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject CollectionService CollectionSvc
+@inject ICurrentUser CurrentUser
+
+<PageTitle>My Collections</PageTitle>
+
+<h1 class="mb-4">My Collections</h1>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger alert-dismissible">
+        @_error
+        <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+    </div>
+}
+@if (_success is not null)
+{
+    <div class="alert alert-success alert-dismissible">
+        @_success
+        <button type="button" class="btn-close" @onclick="() => _success = null"></button>
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">New Collection</h5>
+        <div class="input-group">
+            <input class="form-control"
+                   placeholder="Collection name"
+                   @bind="_newName"
+                   @bind:event="oninput"
+                   @onkeydown="OnCreateKeyDown" />
+            <button class="btn btn-primary"
+                    @onclick="CreateAsync"
+                    disabled="@(string.IsNullOrWhiteSpace(_newName) || _saving)">
+                Create
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (_collections is null)
+{
+    <p class="text-muted">Loading…</p>
+}
+else if (_collections.Count == 0)
+{
+    <p class="text-muted">No collections yet — create one above.</p>
+}
+else
+{
+    <div class="list-group">
+        @foreach (var c in _collections)
+        {
+            <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <a href="/collections/@c.Id.Value" class="fw-semibold text-decoration-none stretched-link">
+                    @c.Name
+                </a>
+                <div class="btn-group btn-group-sm position-relative" style="z-index:1">
+                    <button class="btn btn-outline-secondary"
+                            @onclick="() => MakePublicAsync(c.Id)"
+                            title="Anyone can view">
+                        Make Public
+                    </button>
+                    <button class="btn btn-outline-secondary"
+                            @onclick="() => MakePrivateAsync(c.Id)"
+                            title="Only you and people you share with can view">
+                        Make Private
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<Collection>? _collections;
+    private string _newName = "";
+    private string? _error;
+    private string? _success;
+    private bool _saving;
+
+    protected override async Task OnInitializedAsync()
+        => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            _collections = await CollectionSvc.GetOwnedAsync(userId);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task OnCreateKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CreateAsync();
+    }
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName)) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CollectionSvc.CreateAsync(CollectionId.New(), _newName.Trim(), userId);
+            _newName = "";
+            _success = "Collection created.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task MakePublicAsync(CollectionId id)
+    {
+        _error = null; _success = null;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CollectionSvc.MakePublicAsync(id, userId);
+            _success = "Collection is now public — anyone can view it.";
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this collection."; }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task MakePrivateAsync(CollectionId id)
+    {
+        _error = null; _success = null;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CollectionSvc.MakePrivateAsync(id, userId);
+            _success = "Collection is now private.";
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this collection."; }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+}
