@@ -7,6 +7,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
+        services.AddScoped<CardInstanceService>();
         services.AddScoped<TradeProposalService>();
         services.AddScoped<CollectionService>();
         services.AddScoped<DelegationService>();
