@@ -1,0 +1,211 @@
+@page "/collections/{id:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject CollectionService CollectionSvc
+@inject ICurrentUser CurrentUser
+@inject IUserLookup UserLookup
+@inject NavigationManager Nav
+
+<PageTitle>@(_collection?.Name ?? "Collection")</PageTitle>
+
+@if (_loading)
+{
+    <p class="text-muted">Loading…</p>
+}
+else if (_collection is null)
+{
+    <p class="text-danger">Collection not found.</p>
+    <a href="/collections" class="btn btn-secondary btn-sm">Back to Collections</a>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/collections">Collections</a></li>
+            <li class="breadcrumb-item active">@_collection.Name</li>
+        </ol>
+    </nav>
+
+    <h1 class="mb-4">@_collection.Name</h1>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger alert-dismissible">
+            @_error
+            <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+        </div>
+    }
+    @if (_success is not null)
+    {
+        <div class="alert alert-success alert-dismissible">
+            @_success
+            <button type="button" class="btn-close" @onclick="() => _success = null"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">Visibility</div>
+                <div class="card-body">
+                    <p class="card-text text-muted small">
+                        Public collections can be viewed by anyone. Private collections are
+                        visible only to you and the people you share them with.
+                    </p>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary" @onclick="MakePublicAsync">Make Public</button>
+                        <button class="btn btn-outline-secondary" @onclick="MakePrivateAsync">Make Private</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">Share with a user</div>
+                <div class="card-body">
+                    <p class="card-text text-muted small">
+                        Enter the email address of the user you want to share this collection with.
+                        They will be able to view the collection and its card instances.
+                    </p>
+                    <div class="input-group mb-2">
+                        <input class="form-control"
+                               type="email"
+                               placeholder="user@example.com"
+                               @bind="_shareEmail"
+                               @bind:event="oninput"
+                               @onkeydown="OnShareKeyDown" />
+                        <button class="btn btn-primary"
+                                @onclick="ShareAsync"
+                                disabled="@(string.IsNullOrWhiteSpace(_shareEmail) || _saving)">
+                            Share
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">Revoke access</div>
+                <div class="card-body">
+                    <p class="card-text text-muted small">
+                        Remove view access from a previously shared user.
+                    </p>
+                    <div class="input-group mb-2">
+                        <input class="form-control"
+                               type="email"
+                               placeholder="user@example.com"
+                               @bind="_unshareEmail"
+                               @bind:event="oninput"
+                               @onkeydown="OnUnshareKeyDown" />
+                        <button class="btn btn-outline-danger"
+                                @onclick="UnshareAsync"
+                                disabled="@(string.IsNullOrWhiteSpace(_unshareEmail) || _saving)">
+                            Revoke
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Collection? _collection;
+    private bool _loading = true;
+    private string? _error;
+    private string? _success;
+    private bool _saving;
+    private string _shareEmail = "";
+    private string _unshareEmail = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        try
+        {
+            _collection = await CollectionSvc.GetByIdAsync(new CollectionId(Id));
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task MakePublicAsync()
+    {
+        _error = null; _success = null;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CollectionSvc.MakePublicAsync(new CollectionId(Id), userId);
+            _success = "Collection is now public — anyone can view it.";
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this collection."; }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task MakePrivateAsync()
+    {
+        _error = null; _success = null;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CollectionSvc.MakePrivateAsync(new CollectionId(Id), userId);
+            _success = "Collection is now private.";
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this collection."; }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task OnShareKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ShareAsync();
+    }
+
+    private async Task ShareAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_shareEmail)) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var targetId = await UserLookup.FindByEmailAsync(_shareEmail.Trim());
+            if (targetId is null) { _error = $"No account found for '{_shareEmail.Trim()}'."; return; }
+
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CollectionSvc.ShareWithUserAsync(new CollectionId(Id), userId, targetId.Value);
+            _shareEmail = "";
+            _success = $"Shared with {_shareEmail.Trim() /*captured before clear*/}.";
+            // Re-capture the email before clearing for the success message
+            _success = "Access granted.";
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to share this collection."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task OnUnshareKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await UnshareAsync();
+    }
+
+    private async Task UnshareAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_unshareEmail)) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var targetId = await UserLookup.FindByEmailAsync(_unshareEmail.Trim());
+            if (targetId is null) { _error = $"No account found for '{_unshareEmail.Trim()}'."; return; }
+
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CollectionSvc.UnshareAsync(new CollectionId(Id), userId, targetId.Value);
+            _unshareEmail = "";
+            _success = "Access revoked.";
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this collection."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+}
