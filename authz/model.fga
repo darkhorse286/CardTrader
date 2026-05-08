@@ -1,11 +1,6 @@
 model
   schema 1.1
 
-# Expires-at is passed in check context as current_time. Used for time-bound delegations.
-condition not_expired(current_time: timestamp, expires_at: timestamp) {
-  current_time < expires_at
-}
-
 type user
 
 # card_instance is the owned object. Ownership tuples attach here, not to the card archetype.
@@ -47,3 +42,8 @@ type delegation
     # [user] covers indefinite delegations; [user with not_expired] covers time-bound ones.
     # Never use only [user with not_expired] — that prevents writing unconditioned tuples.
     define active_delegator: [user, user with not_expired]
+
+# Expires-at is passed in check context as current_time. Used for time-bound delegations.
+condition not_expired(current_time: timestamp, expires_at: timestamp) {
+  current_time < expires_at
+}
