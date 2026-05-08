@@ -23,8 +23,7 @@ public sealed class OpenFgaFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        _container = new ContainerBuilder()
-            .WithImage("openfga/openfga:latest")
+        _container = new ContainerBuilder("openfga/openfga:latest")
             .WithCommand("run")
             .WithEnvironment("OPENFGA_DATASTORE_ENGINE", "memory")
             .WithPortBinding(8080, true)
