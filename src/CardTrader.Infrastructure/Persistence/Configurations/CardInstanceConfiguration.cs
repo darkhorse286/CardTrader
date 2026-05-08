@@ -19,6 +19,7 @@ internal sealed class CardInstanceConfiguration : IEntityTypeConfiguration<CardI
         builder.Property(c => c.OwnerId)
             .HasConversion(id => id.Value, guid => new UserId(guid))
             .IsRequired();
+        builder.Property(c => c.PrintNumber).IsRequired();
         builder.Ignore(c => c.DomainEvents);
     }
 }
