@@ -26,6 +26,11 @@ See `/docs/architecture.md` for the full folder hierarchy.
   Ownership tuples attach to instances, not archetypes.
 - `Delegation` is a first-class entity for parent-managed accounts.
 
+## Solution conventions
+- Every new project (src or tests) must be added to `CardTrader.slnx` before the
+  task is considered done. `dotnet test` at the root discovers projects solely from
+  the solution file — a project not listed there is invisible to the test runner.
+
 ## Testing conventions
 - `CardTrader.Authorization.Tests` runs against a real OpenFGA instance via 
   Testcontainers. Never mock the FGA engine in this project — doing so 
@@ -37,6 +42,13 @@ See `/docs/architecture.md` for the full folder hierarchy.
   the layer above it is built.
 - The `Adversarial/` folder in Authorization.Tests is the QED evidence battery. 
   All scenarios in the evidence section of the PoC must have a passing test here.
+
+## Security conventions
+- No secrets (passwords, connection strings with credentials, API keys, store IDs) 
+  in any committed file. Use `dotnet user-secrets` for the Web project at runtime 
+  and the `CARDTRADER_DB_CONNECTION` environment variable for EF migrations.
+- `appsettings.Development.json` may contain non-secret dev config (URLs, log levels).
+  It must never contain usernames, passwords, or token values.
 
 ## Completion conventions
 - After every feature lands (build green, all tests passing), output an updated
