@@ -10,6 +10,9 @@ internal sealed class CollectionRepository(AppDbContext db) : ICollectionReposit
     public Task<Collection?> GetByIdAsync(CollectionId id, CancellationToken ct = default)
         => db.Collections.FirstOrDefaultAsync(c => c.Id == id, ct);
 
+    public async Task<IReadOnlyList<Collection>> GetAllByOwnerAsync(UserId ownerId, CancellationToken ct = default)
+        => await db.Collections.Where(c => c.OwnerId == ownerId).ToListAsync(ct);
+
     public async Task AddAsync(Collection collection, CancellationToken ct = default)
     {
         await db.Collections.AddAsync(collection, ct);

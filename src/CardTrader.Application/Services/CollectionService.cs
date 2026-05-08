@@ -12,6 +12,12 @@ public sealed class CollectionService(
     IAuthorizationService authz,
     IDomainEventDispatcher dispatcher)
 {
+    public Task<Collection?> GetByIdAsync(CollectionId id, CancellationToken ct = default)
+        => collections.GetByIdAsync(id, ct);
+
+    public Task<IReadOnlyList<Collection>> GetOwnedAsync(UserId ownerId, CancellationToken ct = default)
+        => collections.GetAllByOwnerAsync(ownerId, ct);
+
     public async Task<Collection> CreateAsync(
         CollectionId id, string name, UserId ownerId, CancellationToken ct = default)
     {
