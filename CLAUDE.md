@@ -64,3 +64,25 @@ See `/docs/architecture.md` for the full folder hierarchy.
   or install via `brew install openfga/tap/fga` (macOS/Linux)
 - `dotnet run --project src/CardTrader.Web` starts the Blazor app
 - `dotnet test tests/CardTrader.Authorization.Tests` runs the adversarial suite
+
+## Applying EF migrations
+On Windows with Docker Desktop, connections from the host to the Postgres
+container traverse the Docker bridge network and are therefore subject to
+SCRAM-SHA-256 password authentication (`pg_hba.conf` last rule). `dotnet ef
+database update` will fail with "password authentication failed" even with the
+correct credentials. Always apply migrations via the generate-then-execute
+pattern instead:
+
+```powershell
+# 1. Generate idempotent SQL (no DB connection required)
+$env:CARDTRADER_DB_CONNECTION = "dummy"
+dotnet ef migrations script --project src/<Project> --context <Context> `
+    --idempotent --output c:\Temp\migration.sql
+
+# 2. Apply inside the container (uses trust auth, no password)
+docker cp c:\Temp\migration.sql docker-postgres-1:/tmp/migration.sql
+docker exec docker-postgres-1 psql -U cardtrader -d cardtrader -f /tmp/migration.sql
+```
+
+Never attempt `dotnet ef database update` directly against the Docker Postgres
+instance from a Windows host — it will always fail on this machine.
