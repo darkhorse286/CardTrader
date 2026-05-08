@@ -168,4 +168,42 @@ public class CollectionServiceTests
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => _sut.MakePrivateAsync(id, UserId.New()));
     }
+
+    // ── GetByIdAsync ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetByIdAsync_DelegatesToRepository()
+    {
+        var id = CollectionId.New();
+        var expected = MakeCollection(id, UserId.New());
+        _collections.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(expected);
+
+        var result = await _sut.GetByIdAsync(id);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ReturnsNull_WhenNotFound()
+    {
+        _collections.GetByIdAsync(Arg.Any<CollectionId>(), Arg.Any<CancellationToken>()).Returns((Collection?)null);
+
+        var result = await _sut.GetByIdAsync(CollectionId.New());
+
+        Assert.Null(result);
+    }
+
+    // ── GetOwnedAsync ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetOwnedAsync_DelegatesToRepository()
+    {
+        var owner = UserId.New();
+        var expected = new List<Collection> { MakeCollection(CollectionId.New(), owner) };
+        _collections.GetAllByOwnerAsync(owner, Arg.Any<CancellationToken>()).Returns(expected);
+
+        var result = await _sut.GetOwnedAsync(owner);
+
+        Assert.Equal(expected, result);
+    }
 }

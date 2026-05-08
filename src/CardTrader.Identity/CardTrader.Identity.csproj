@@ -24,4 +24,9 @@
     <ProjectReference Include="..\CardTrader.Application\CardTrader.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="CardTrader.Identity.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+
 </Project>

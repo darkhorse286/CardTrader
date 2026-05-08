@@ -60,4 +60,26 @@ public class CollectionRepositoryTests
         Assert.Equal(id, result.Id);
         Assert.Equal("Trade Binder", result.Name);
     }
+
+    [Fact]
+    public async Task GetAllByOwnerAsync_ReturnsOnlyOwnerCollections()
+    {
+        var dbName = nameof(GetAllByOwnerAsync_ReturnsOnlyOwnerCollections);
+        var owner = UserId.New();
+        var other = UserId.New();
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var repo = new CollectionRepository(ctx);
+            await repo.AddAsync(Collection.Create(CollectionId.New(), "Alice Deck 1", owner));
+            await repo.AddAsync(Collection.Create(CollectionId.New(), "Alice Deck 2", owner));
+            await repo.AddAsync(Collection.Create(CollectionId.New(), "Bob Deck", other));
+        }
+
+        await using var readCtx = CreateContext(dbName);
+        var results = await new CollectionRepository(readCtx).GetAllByOwnerAsync(owner);
+
+        Assert.Equal(2, results.Count);
+        Assert.All(results, c => Assert.Equal(owner, c.OwnerId));
+    }
 }
