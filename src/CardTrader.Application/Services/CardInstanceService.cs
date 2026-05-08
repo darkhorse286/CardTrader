@@ -22,12 +22,28 @@ public sealed class CardInstanceService(
         return instance;
     }
 
+    public async Task<CardInstance> MintAndAddToCollectionAsync(
+        CardInstanceId id, CardId cardId, UserId ownerId, int printNumber, CollectionId collectionId, CancellationToken ct = default)
+    {
+        var instance = CardInstance.Create(id, cardId, ownerId, printNumber);
+        instance.AddToCollection(collectionId);
+        await instances.AddAsync(instance, ct);
+        await dispatcher.DispatchAsync(instance.DomainEvents, ct);
+        instance.ClearDomainEvents();
+        return instance;
+    }
+
+    public Task<IReadOnlyList<CardInstance>> GetByCollectionAsync(
+        CollectionId collectionId, CancellationToken ct = default)
+        => instances.GetByCollectionAsync(collectionId, ct);
+
     public async Task AddToCollectionAsync(
         CardInstanceId id, UserId requestingUserId, CollectionId collectionId, CancellationToken ct = default)
     {
         var instance = await GetOrThrowAsync(id, ct);
         await CheckOrThrowAsync(requestingUserId, FgaRelations.CanManage, id, ct);
         instance.AddToCollection(collectionId);
+        await instances.UpdateAsync(instance, ct);
         await dispatcher.DispatchAsync(instance.DomainEvents, ct);
         instance.ClearDomainEvents();
     }
@@ -38,6 +54,7 @@ public sealed class CardInstanceService(
         var instance = await GetOrThrowAsync(id, ct);
         await CheckOrThrowAsync(requestingUserId, FgaRelations.CanManage, id, ct);
         instance.RemoveFromCollection(collectionId);
+        await instances.UpdateAsync(instance, ct);
         await dispatcher.DispatchAsync(instance.DomainEvents, ct);
         instance.ClearDomainEvents();
     }
