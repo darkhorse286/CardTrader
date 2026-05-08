@@ -1,3 +1,4 @@
+using CardTrader.Application.Abstractions;
 using CardTrader.Infrastructure.OpenFga;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,7 @@ public static class ServiceCollectionExtensions
             configuration.GetSection(OpenFgaOptions.SectionName));
 
         services.AddSingleton<OpenFgaClientFactory>();
+        services.AddSingleton<IAuthorizationService, OpenFgaAuthorizationService>();
 
         return services;
     }
