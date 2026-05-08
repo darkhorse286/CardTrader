@@ -57,5 +57,10 @@ See `/docs/architecture.md` for the full folder hierarchy.
 
 ## Running locally
 - `docker compose -f docker/docker-compose.yml up -d` starts Postgres + OpenFGA
+- `bash authz/load-model.sh` creates the FGA store and writes the model; follow
+  its printed `dotnet user-secrets` commands to wire up the Web project
+- The `fga` CLI binary lives in `tools/` (gitignored). Download from
+  https://github.com/openfga/cli/releases and place at `tools/fga.exe` (Windows)
+  or install via `brew install openfga/tap/fga` (macOS/Linux)
 - `dotnet run --project src/CardTrader.Web` starts the Blazor app
 - `dotnet test tests/CardTrader.Authorization.Tests` runs the adversarial suite
