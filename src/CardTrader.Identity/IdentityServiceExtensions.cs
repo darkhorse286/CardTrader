@@ -25,6 +25,7 @@ public static class IdentityServiceExtensions
                 npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity")));
 
         services.AddScoped<ICurrentUser, AspNetCoreCurrentUser>();
+        services.AddScoped<IUserLookup, AspNetCoreUserLookup>();
 
         // Relaxed password rules for dev/PoC — tighten before any real deployment.
         return services

@@ -7,6 +7,12 @@ namespace CardTrader.Web.Pages.Account;
 
 public sealed class LogoutModel(SignInManager<CardTraderUser> signInManager) : PageModel
 {
+    public async Task<IActionResult> OnGetAsync()
+    {
+        await signInManager.SignOutAsync();
+        return RedirectToPage("/Account/Login");
+    }
+
     public async Task<IActionResult> OnPostAsync()
     {
         await signInManager.SignOutAsync();
