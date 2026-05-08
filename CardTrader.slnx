@@ -9,6 +9,8 @@
   <Folder Name="/tests/">
     <Project Path="tests/CardTrader.Application.Tests/CardTrader.Application.Tests.csproj" />
     <Project Path="tests/CardTrader.Authorization.Tests/CardTrader.Authorization.Tests.csproj" />
+    <Project Path="tests/CardTrader.Domain.Tests/CardTrader.Domain.Tests.csproj" />
+    <Project Path="tests/CardTrader.Infrastructure.Tests/CardTrader.Infrastructure.Tests.csproj" />
     <Project Path="tests/CardTrader.Integration.Tests/CardTrader.Integration.Tests.csproj" />
   </Folder>
 </Solution>
