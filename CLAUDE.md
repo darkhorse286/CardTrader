@@ -38,6 +38,11 @@ See `/docs/architecture.md` for the full folder hierarchy.
 - The `Adversarial/` folder in Authorization.Tests is the QED evidence battery. 
   All scenarios in the evidence section of the PoC must have a passing test here.
 
+## Completion conventions
+- After every feature lands (build green, all tests passing), output an updated
+  prioritized list of remaining features without being asked. One sentence per
+  item — what it is and why it comes next in that order.
+
 ## Running locally
 - `docker compose -f docker/docker-compose.yml up -d` starts Postgres + OpenFGA
 - `dotnet run --project src/CardTrader.Web` starts the Blazor app
