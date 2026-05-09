@@ -10,9 +10,9 @@ internal sealed class CardInstanceRepository(AppDbContext db) : ICardInstanceRep
     public Task<CardInstance?> GetByIdAsync(CardInstanceId id, CancellationToken ct = default)
         => db.CardInstances.FirstOrDefaultAsync(c => c.Id == id, ct);
 
-    public async Task<IReadOnlyList<CardInstance>> GetByCollectionAsync(CollectionId collectionId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CardInstance>> GetByRosterAsync(RosterId rosterId, CancellationToken ct = default)
         => await db.CardInstances
-            .Where(c => c.CollectionId == collectionId)
+            .Where(c => c.RosterId == rosterId)
             .ToListAsync(ct);
 
     public async Task AddAsync(CardInstance instance, CancellationToken ct = default)

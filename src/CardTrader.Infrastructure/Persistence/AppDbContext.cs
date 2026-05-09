@@ -7,7 +7,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 {
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<CardInstance> CardInstances => Set<CardInstance>();
-    public DbSet<Collection> Collections => Set<Collection>();
+    public DbSet<Roster> Rosters => Set<Roster>();
     public DbSet<TradeProposal> TradeProposals => Set<TradeProposal>();
     public DbSet<Delegation> Delegations => Set<Delegation>();
 

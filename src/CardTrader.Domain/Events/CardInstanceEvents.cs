@@ -6,8 +6,8 @@ namespace CardTrader.Domain.Events;
 public sealed record CardInstanceCreated(
     CardInstanceId Id, CardId CardId, UserId OwnerId) : IDomainEvent;
 
-public sealed record CardInstanceAddedToCollection(
-    CardInstanceId Id, CollectionId CollectionId) : IDomainEvent;
+public sealed record CardInstanceAddedToRoster(
+    CardInstanceId Id, RosterId RosterId) : IDomainEvent;
 
-public sealed record CardInstanceRemovedFromCollection(
-    CardInstanceId Id, CollectionId CollectionId) : IDomainEvent;
+public sealed record CardInstanceRemovedFromRoster(
+    CardInstanceId Id, RosterId RosterId) : IDomainEvent;

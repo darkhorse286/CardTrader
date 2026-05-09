@@ -8,14 +8,14 @@ type card_instance
   relations
     define owner: [user]
     define viewer: [user]
-    # An instance can belong to multiple collections; can_view from collection evaluates all of them.
-    define collection: [collection]
-    define can_view: owner or viewer or can_view from collection
+    # An instance belongs to a roster; can_view from roster evaluates the roster's visibility.
+    define roster: [roster]
+    define can_view: owner or viewer or can_view from roster
     define can_manage: owner
     define can_trade: owner
 
-# collection groups card_instances. viewer accepts user:* for public access.
-type collection
+# roster groups card_instances. viewer accepts user:* for public access.
+type roster
   relations
     define owner: [user]
     define viewer: [user, user:*]

@@ -1,12 +1,12 @@
-@page "/collections"
+@page "/rosters"
 @rendermode InteractiveServer
 @attribute [Authorize]
-@inject CollectionService CollectionSvc
+@inject RosterService RosterSvc
 @inject ICurrentUser CurrentUser
 
-<PageTitle>My Collections</PageTitle>
+<PageTitle>My Rosters</PageTitle>
 
-<h1 class="mb-4">My Collections</h1>
+<h1 class="mb-4">My Rosters</h1>
 
 @if (_error is not null)
 {
@@ -25,10 +25,10 @@
 
 <div class="card mb-4">
     <div class="card-body">
-        <h5 class="card-title">New Collection</h5>
+        <h5 class="card-title">New Roster</h5>
         <div class="input-group">
             <input class="form-control"
-                   placeholder="Collection name"
+                   placeholder="Roster name"
                    @bind="_newName"
                    @bind:event="oninput"
                    @onkeydown="OnCreateKeyDown" />
@@ -41,31 +41,31 @@
     </div>
 </div>
 
-@if (_collections is null)
+@if (_rosters is null)
 {
     <p class="text-muted">Loading…</p>
 }
-else if (_collections.Count == 0)
+else if (_rosters.Count == 0)
 {
-    <p class="text-muted">No collections yet — create one above.</p>
+    <p class="text-muted">No rosters yet — create one above.</p>
 }
 else
 {
     <div class="list-group">
-        @foreach (var c in _collections)
+        @foreach (var r in _rosters)
         {
             <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                <a href="/collections/@c.Id.Value" class="fw-semibold text-decoration-none stretched-link">
-                    @c.Name
+                <a href="/rosters/@r.Id.Value" class="fw-semibold text-decoration-none stretched-link">
+                    @r.Name
                 </a>
                 <div class="btn-group btn-group-sm position-relative" style="z-index:1">
                     <button class="btn btn-outline-secondary"
-                            @onclick="() => MakePublicAsync(c.Id)"
+                            @onclick="() => MakePublicAsync(r.Id)"
                             title="Anyone can view">
                         Make Public
                     </button>
                     <button class="btn btn-outline-secondary"
-                            @onclick="() => MakePrivateAsync(c.Id)"
+                            @onclick="() => MakePrivateAsync(r.Id)"
                             title="Only you and people you share with can view">
                         Make Private
                     </button>
@@ -76,7 +76,7 @@ else
 }
 
 @code {
-    private IReadOnlyList<Collection>? _collections;
+    private IReadOnlyList<Roster>? _rosters;
     private string _newName = "";
     private string? _error;
     private string? _success;
@@ -90,12 +90,9 @@ else
         try
         {
             var userId = await CurrentUser.GetUserIdAsync();
-            _collections = await CollectionSvc.GetOwnedAsync(userId);
+            _rosters = await RosterSvc.GetOwnedAsync(userId);
         }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
+        catch (Exception ex) { _error = ex.Message; }
     }
 
     private async Task OnCreateKeyDown(KeyboardEventArgs e)
@@ -110,38 +107,38 @@ else
         try
         {
             var userId = await CurrentUser.GetUserIdAsync();
-            await CollectionSvc.CreateAsync(CollectionId.New(), _newName.Trim(), userId);
+            await RosterSvc.CreateAsync(RosterId.New(), _newName.Trim(), userId);
             _newName = "";
-            _success = "Collection created.";
+            _success = "Roster created.";
             await LoadAsync();
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }
 
-    private async Task MakePublicAsync(CollectionId id)
+    private async Task MakePublicAsync(RosterId id)
     {
         _error = null; _success = null;
         try
         {
             var userId = await CurrentUser.GetUserIdAsync();
-            await CollectionSvc.MakePublicAsync(id, userId);
-            _success = "Collection is now public — anyone can view it.";
+            await RosterSvc.MakePublicAsync(id, userId);
+            _success = "Roster is now public — anyone can view it.";
         }
-        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this collection."; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this roster."; }
         catch (Exception ex) { _error = ex.Message; }
     }
 
-    private async Task MakePrivateAsync(CollectionId id)
+    private async Task MakePrivateAsync(RosterId id)
     {
         _error = null; _success = null;
         try
         {
             var userId = await CurrentUser.GetUserIdAsync();
-            await CollectionSvc.MakePrivateAsync(id, userId);
-            _success = "Collection is now private.";
+            await RosterSvc.MakePrivateAsync(id, userId);
+            _success = "Roster is now private.";
         }
-        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this collection."; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this roster."; }
         catch (Exception ex) { _error = ex.Message; }
     }
 }

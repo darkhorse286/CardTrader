@@ -33,7 +33,7 @@ public sealed class DelegationTupleWriterTests
 
     [Fact]
     public void CanHandle_UnrelatedEvent_ReturnsFalse()
-        => Assert.False(_sut.CanHandle(new CollectionCreated(CollectionId.New(), "x", UserId.New())));
+        => Assert.False(_sut.CanHandle(new RosterCreated(RosterId.New(), "x", UserId.New())));
 
     // ── DelegationCreated ────────────────────────────────────────────────────
 

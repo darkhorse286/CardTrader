@@ -12,7 +12,7 @@ public sealed class CardInstance : Entity<CardInstanceId>
 
     private CardInstance() { }
 
-    public CollectionId? CollectionId { get; private set; }
+    public RosterId? RosterId { get; private set; }
 
     public static CardInstance Create(CardInstanceId id, CardId cardId, UserId ownerId, int printNumber)
     {
@@ -23,15 +23,15 @@ public sealed class CardInstance : Entity<CardInstanceId>
         return instance;
     }
 
-    public void AddToCollection(CollectionId collectionId)
+    public void AddToRoster(RosterId rosterId)
     {
-        CollectionId = collectionId;
-        Raise(new CardInstanceAddedToCollection(Id, collectionId));
+        RosterId = rosterId;
+        Raise(new CardInstanceAddedToRoster(Id, rosterId));
     }
 
-    public void RemoveFromCollection(CollectionId collectionId)
+    public void RemoveFromRoster(RosterId rosterId)
     {
-        CollectionId = null;
-        Raise(new CardInstanceRemovedFromCollection(Id, collectionId));
+        RosterId = null;
+        Raise(new CardInstanceRemovedFromRoster(Id, rosterId));
     }
 }

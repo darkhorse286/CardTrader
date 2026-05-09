@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions
 
         // Tuple writers
         services.AddSingleton<ITupleWriterHandler, CardInstanceTupleWriter>();
-        services.AddSingleton<ITupleWriterHandler, CollectionTupleWriter>();
+        services.AddSingleton<ITupleWriterHandler, RosterTupleWriter>();
         services.AddSingleton<ITupleWriterHandler, TradeProposalTupleWriter>();
         services.AddSingleton<ITupleWriterHandler, DelegationTupleWriter>();
         services.AddSingleton<IDomainEventDispatcher, TupleWriterDispatcher>();
@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
         services.AddScoped<ICardRepository, CardRepository>();
         services.AddScoped<ICardInstanceRepository, CardInstanceRepository>();
-        services.AddScoped<ICollectionRepository, CollectionRepository>();
+        services.AddScoped<IRosterRepository, RosterRepository>();
         services.AddScoped<ITradeProposalRepository, TradeProposalRepository>();
         services.AddScoped<IDelegationRepository, DelegationRepository>();
 

@@ -1,5 +1,6 @@
 using CardTrader.Application.Abstractions;
 using CardTrader.Application.Services;
+using CardTrader.Domain;
 using CardTrader.Domain.Common;
 using CardTrader.Domain.Entities;
 using CardTrader.Domain.Repositories;
@@ -11,13 +12,16 @@ namespace CardTrader.Application.Tests;
 public class CardInstanceServiceTests
 {
     private readonly ICardInstanceRepository _instances = Substitute.For<ICardInstanceRepository>();
+    private readonly ICardRepository _cards = Substitute.For<ICardRepository>();
     private readonly IAuthorizationService _authz = Substitute.For<IAuthorizationService>();
     private readonly IDomainEventDispatcher _dispatcher = Substitute.For<IDomainEventDispatcher>();
     private readonly CardInstanceService _sut;
 
     public CardInstanceServiceTests()
     {
-        _sut = new CardInstanceService(_instances, _authz, _dispatcher);
+        _sut = new CardInstanceService(_instances, _cards, _authz, _dispatcher);
+        _instances.GetByRosterAsync(Arg.Any<RosterId>(), Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<CardInstance>)[]);
     }
 
     private static CardInstance MakeInstance(CardInstanceId id, UserId owner)
@@ -56,85 +60,85 @@ public class CardInstanceServiceTests
         Assert.Empty(result.DomainEvents);
     }
 
-    // ── AddToCollectionAsync ──────────────────────────────────────────────────
+    // ── AddToRosterAsync ──────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddToCollectionAsync_WhenAuthorized_DispatchesEvent()
+    public async Task AddToRosterAsync_WhenAuthorized_DispatchesEvent()
     {
         var id = CardInstanceId.New();
         var owner = UserId.New();
         _instances.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeInstance(id, owner));
         Allow();
 
-        await _sut.AddToCollectionAsync(id, owner, CollectionId.New());
+        await _sut.AddToRosterAsync(id, owner, RosterId.New());
 
         await _dispatcher.Received().DispatchAsync(Arg.Any<IReadOnlyList<IDomainEvent>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task AddToCollectionAsync_WhenUnauthorized_Throws()
+    public async Task AddToRosterAsync_WhenUnauthorized_Throws()
     {
         var id = CardInstanceId.New();
         _instances.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeInstance(id, UserId.New()));
         Deny();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => _sut.AddToCollectionAsync(id, UserId.New(), CollectionId.New()));
+            () => _sut.AddToRosterAsync(id, UserId.New(), RosterId.New()));
     }
 
     [Fact]
-    public async Task AddToCollectionAsync_WhenNotFound_Throws()
+    public async Task AddToRosterAsync_WhenNotFound_Throws()
     {
         _instances.GetByIdAsync(Arg.Any<CardInstanceId>(), Arg.Any<CancellationToken>()).Returns((CardInstance?)null);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _sut.AddToCollectionAsync(CardInstanceId.New(), UserId.New(), CollectionId.New()));
+            () => _sut.AddToRosterAsync(CardInstanceId.New(), UserId.New(), RosterId.New()));
     }
 
-    // ── RemoveFromCollectionAsync ─────────────────────────────────────────────
+    // ── RemoveFromRosterAsync ─────────────────────────────────────────────────
 
     [Fact]
-    public async Task RemoveFromCollectionAsync_WhenAuthorized_DispatchesEvent()
+    public async Task RemoveFromRosterAsync_WhenAuthorized_DispatchesEvent()
     {
         var id = CardInstanceId.New();
         var owner = UserId.New();
         _instances.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeInstance(id, owner));
         Allow();
 
-        await _sut.RemoveFromCollectionAsync(id, owner, CollectionId.New());
+        await _sut.RemoveFromRosterAsync(id, owner, RosterId.New());
 
         await _dispatcher.Received().DispatchAsync(Arg.Any<IReadOnlyList<IDomainEvent>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task RemoveFromCollectionAsync_WhenUnauthorized_Throws()
+    public async Task RemoveFromRosterAsync_WhenUnauthorized_Throws()
     {
         var id = CardInstanceId.New();
         _instances.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeInstance(id, UserId.New()));
         Deny();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => _sut.RemoveFromCollectionAsync(id, UserId.New(), CollectionId.New()));
+            () => _sut.RemoveFromRosterAsync(id, UserId.New(), RosterId.New()));
     }
 
     [Fact]
-    public async Task RemoveFromCollectionAsync_WhenNotFound_Throws()
+    public async Task RemoveFromRosterAsync_WhenNotFound_Throws()
     {
         _instances.GetByIdAsync(Arg.Any<CardInstanceId>(), Arg.Any<CancellationToken>()).Returns((CardInstance?)null);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _sut.RemoveFromCollectionAsync(CardInstanceId.New(), UserId.New(), CollectionId.New()));
+            () => _sut.RemoveFromRosterAsync(CardInstanceId.New(), UserId.New(), RosterId.New()));
     }
 
-    // ── MintAndAddToCollectionAsync ───────────────────────────────────────────
+    // ── MintAndAddToRosterAsync ───────────────────────────────────────────────
 
     [Fact]
-    public async Task MintAndAddToCollectionAsync_PersistsAndDispatchesEvents()
+    public async Task MintAndAddToRosterAsync_PersistsAndDispatchesEvents()
     {
         var id = CardInstanceId.New();
-        var collectionId = CollectionId.New();
+        var rosterId = RosterId.New();
 
-        var result = await _sut.MintAndAddToCollectionAsync(id, CardId.New(), UserId.New(), 1, collectionId);
+        var result = await _sut.MintAndAddToRosterAsync(id, CardId.New(), UserId.New(), 1, rosterId);
 
         await _instances.Received().AddAsync(Arg.Is<CardInstance>(i => i.Id == id), Arg.Any<CancellationToken>());
         await _dispatcher.Received().DispatchAsync(Arg.Any<IReadOnlyList<IDomainEvent>>(), Arg.Any<CancellationToken>());
@@ -142,61 +146,93 @@ public class CardInstanceServiceTests
     }
 
     [Fact]
-    public async Task MintAndAddToCollectionAsync_SetsCollectionId()
+    public async Task MintAndAddToRosterAsync_SetsRosterId()
     {
-        var collectionId = CollectionId.New();
+        var rosterId = RosterId.New();
 
-        var result = await _sut.MintAndAddToCollectionAsync(
-            CardInstanceId.New(), CardId.New(), UserId.New(), 1, collectionId);
+        var result = await _sut.MintAndAddToRosterAsync(
+            CardInstanceId.New(), CardId.New(), UserId.New(), 1, rosterId);
 
-        Assert.Equal(collectionId, result.CollectionId);
+        Assert.Equal(rosterId, result.RosterId);
     }
 
     [Fact]
-    public async Task MintAndAddToCollectionAsync_ClearsEventsAfterDispatch()
+    public async Task MintAndAddToRosterAsync_ClearsEventsAfterDispatch()
     {
-        var result = await _sut.MintAndAddToCollectionAsync(
-            CardInstanceId.New(), CardId.New(), UserId.New(), 1, CollectionId.New());
+        var result = await _sut.MintAndAddToRosterAsync(
+            CardInstanceId.New(), CardId.New(), UserId.New(), 1, RosterId.New());
 
         Assert.Empty(result.DomainEvents);
     }
 
-    // ── GetByCollectionAsync ──────────────────────────────────────────────────
+    [Fact]
+    public async Task MintAndAddToRosterAsync_WhenRosterFull_Throws()
+    {
+        var rosterId = RosterId.New();
+        var full = Enumerable.Range(0, RosterConstraints.MaxSize)
+            .Select(_ => MakeInstance(CardInstanceId.New(), UserId.New()))
+            .ToList<CardInstance>();
+        _instances.GetByRosterAsync(rosterId, Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<CardInstance>)full);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _sut.MintAndAddToRosterAsync(CardInstanceId.New(), CardId.New(), UserId.New(), 1, rosterId));
+    }
 
     [Fact]
-    public async Task GetByCollectionAsync_DelegatesToRepository()
+    public async Task MintAndAddToRosterAsync_WhenPositionSlotFull_Throws()
     {
-        var collectionId = CollectionId.New();
-        var expected = new List<CardInstance> { MakeInstance(CardInstanceId.New(), UserId.New()) };
-        _instances.GetByCollectionAsync(collectionId, Arg.Any<CancellationToken>()).Returns(expected);
+        var attackCard = Card.Create(CardId.New(), "Attacker", "Set", "Rare", "P", 100,
+            playerPosition: "Attack");
+        var rosterId = RosterId.New();
 
-        var result = await _sut.GetByCollectionAsync(collectionId);
+        var existingInstances = Enumerable.Range(0, RosterConstraints.PositionSlots["Attack"])
+            .Select(_ => MakeInstance(CardInstanceId.New(), UserId.New()))
+            .ToList<CardInstance>();
+        _instances.GetByRosterAsync(rosterId, Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<CardInstance>)existingInstances);
+        _cards.GetByIdAsync(Arg.Any<CardId>(), Arg.Any<CancellationToken>()).Returns(attackCard);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _sut.MintAndAddToRosterAsync(CardInstanceId.New(), attackCard.Id, UserId.New(), 1, rosterId));
+    }
+
+    // ── GetByRosterAsync ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetByRosterAsync_DelegatesToRepository()
+    {
+        var rosterId = RosterId.New();
+        var expected = new List<CardInstance> { MakeInstance(CardInstanceId.New(), UserId.New()) };
+        _instances.GetByRosterAsync(rosterId, Arg.Any<CancellationToken>()).Returns(expected);
+
+        var result = await _sut.GetByRosterAsync(rosterId);
 
         Assert.Equal(expected, result);
     }
 
-    // ── AddToCollectionAsync (UpdateAsync) ────────────────────────────────────
+    // ── AddToRosterAsync (UpdateAsync) ────────────────────────────────────────
 
     [Fact]
-    public async Task AddToCollectionAsync_WhenAuthorized_CallsUpdateAsync()
+    public async Task AddToRosterAsync_WhenAuthorized_CallsUpdateAsync()
     {
         var id = CardInstanceId.New();
         _instances.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeInstance(id, UserId.New()));
         Allow();
 
-        await _sut.AddToCollectionAsync(id, UserId.New(), CollectionId.New());
+        await _sut.AddToRosterAsync(id, UserId.New(), RosterId.New());
 
         await _instances.Received().UpdateAsync(Arg.Any<CardInstance>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task RemoveFromCollectionAsync_WhenAuthorized_CallsUpdateAsync()
+    public async Task RemoveFromRosterAsync_WhenAuthorized_CallsUpdateAsync()
     {
         var id = CardInstanceId.New();
         _instances.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeInstance(id, UserId.New()));
         Allow();
 
-        await _sut.RemoveFromCollectionAsync(id, UserId.New(), CollectionId.New());
+        await _sut.RemoveFromRosterAsync(id, UserId.New(), RosterId.New());
 
         await _instances.Received().UpdateAsync(Arg.Any<CardInstance>(), Arg.Any<CancellationToken>());
     }

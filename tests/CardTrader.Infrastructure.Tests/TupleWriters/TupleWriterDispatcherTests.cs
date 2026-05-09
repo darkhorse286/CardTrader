@@ -23,7 +23,7 @@ public sealed class TupleWriterDispatcherTests
     [Fact]
     public async Task DispatchAsync_RoutesEventToMatchingHandler()
     {
-        var @event = new CollectionCreated(CollectionId.New(), "x", UserId.New());
+        var @event = new RosterCreated(RosterId.New(), "x", UserId.New());
         _handlerA.CanHandle(@event).Returns(true);
 
         await _sut.DispatchAsync([@event]);
@@ -35,7 +35,7 @@ public sealed class TupleWriterDispatcherTests
     [Fact]
     public async Task DispatchAsync_FirstMatchingHandlerWins()
     {
-        var @event = new CollectionCreated(CollectionId.New(), "x", UserId.New());
+        var @event = new RosterCreated(RosterId.New(), "x", UserId.New());
         _handlerA.CanHandle(@event).Returns(true);
         _handlerB.CanHandle(@event).Returns(true);
 
@@ -64,7 +64,7 @@ public sealed class TupleWriterDispatcherTests
     [Fact]
     public async Task DispatchAsync_MultipleEvents_EachRoutedIndependently()
     {
-        var eventA = new CollectionCreated(CollectionId.New(), "x", UserId.New());
+        var eventA = new RosterCreated(RosterId.New(), "x", UserId.New());
         var eventB = new CardInstanceCreated(CardInstanceId.New(), CardId.New(), UserId.New());
 
         _handlerA.CanHandle(eventA).Returns(true);
@@ -92,7 +92,7 @@ public sealed class TupleWriterDispatcherTests
     [Fact]
     public async Task DispatchAsync_PropagatesCancellationToken()
     {
-        var @event = new CollectionCreated(CollectionId.New(), "x", UserId.New());
+        var @event = new RosterCreated(RosterId.New(), "x", UserId.New());
         _handlerA.CanHandle(@event).Returns(true);
         var cts = new CancellationTokenSource();
 

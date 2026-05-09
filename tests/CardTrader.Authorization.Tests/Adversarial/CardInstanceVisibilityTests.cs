@@ -7,81 +7,81 @@ namespace CardTrader.Authorization.Tests.Adversarial;
 public sealed class CardInstanceVisibilityTests(OpenFgaFixture fixture)
     : FgaTestBase(fixture)
 {
-    // ── Scenario A: Share → revoke via collection ────────────────────────────
+    // ── Scenario A: Share → revoke via roster ────────────────────────────────
 
     [Fact]
-    public async Task CollectionViewer_CanSeeInstance_BeforeRevoke()
+    public async Task RosterViewer_CanSeeInstance_BeforeRevoke()
     {
-        var (alice, bob, inst, coll) = (Id(), Id(), Id(), Id());
+        var (alice, bob, inst, roster) = (Id(), Id(), Id(), Id());
         await WriteAsync(
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.Collection}:{coll}"),
-            T($"{FgaTypes.Collection}:{coll}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{bob}",   FgaRelations.Viewer,  $"{FgaTypes.Collection}:{coll}"));
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{roster}"),
+            T($"{FgaTypes.Roster}:{roster}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{bob}",   FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"));
 
         Assert.True(await CanAsync($"user:{bob}", FgaRelations.CanView, $"{FgaTypes.CardInstance}:{inst}"));
     }
 
     [Fact]
-    public async Task CollectionViewer_CannotSeeInstance_AfterCollectionRevoke()
+    public async Task RosterViewer_CannotSeeInstance_AfterRosterRevoke()
     {
-        var (alice, bob, inst, coll) = (Id(), Id(), Id(), Id());
+        var (alice, bob, inst, roster) = (Id(), Id(), Id(), Id());
         await WriteAsync(
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.Collection}:{coll}"),
-            T($"{FgaTypes.Collection}:{coll}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{bob}",   FgaRelations.Viewer,  $"{FgaTypes.Collection}:{coll}"));
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{roster}"),
+            T($"{FgaTypes.Roster}:{roster}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{bob}",   FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"));
 
-        await DeleteAsync(D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.Collection}:{coll}"));
+        await DeleteAsync(D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"));
 
         Assert.False(await CanAsync($"user:{bob}", FgaRelations.CanView, $"{FgaTypes.CardInstance}:{inst}"));
     }
 
-    // ── Scenario B: Public collection → private ──────────────────────────────
+    // ── Scenario B: Public roster → private ──────────────────────────────────
 
     [Fact]
-    public async Task PublicCollection_AnyoneCanSeeInstance()
+    public async Task PublicRoster_AnyoneCanSeeInstance()
     {
-        var (alice, eve, inst, coll) = (Id(), Id(), Id(), Id());
+        var (alice, eve, inst, roster) = (Id(), Id(), Id(), Id());
         await WriteAsync(
-            T($"user:{alice}", FgaRelations.Owner,      $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{alice}", FgaRelations.Owner,      $"{FgaTypes.Collection}:{coll}"),
-            T($"{FgaTypes.Collection}:{coll}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T("user:*",        FgaRelations.Viewer,     $"{FgaTypes.Collection}:{coll}"));
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{roster}"),
+            T($"{FgaTypes.Roster}:{roster}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T("user:*",        FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"));
 
         Assert.True(await CanAsync($"user:{eve}", FgaRelations.CanView, $"{FgaTypes.CardInstance}:{inst}"));
     }
 
     [Fact]
-    public async Task MakingCollectionPrivate_RevokesPublicAccess()
+    public async Task MakingRosterPrivate_RevokesPublicAccess()
     {
-        var (alice, eve, inst, coll) = (Id(), Id(), Id(), Id());
+        var (alice, eve, inst, roster) = (Id(), Id(), Id(), Id());
         await WriteAsync(
             T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Collection}:{coll}"),
-            T($"{FgaTypes.Collection}:{coll}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T("user:*",        FgaRelations.Viewer, $"{FgaTypes.Collection}:{coll}"));
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{roster}"),
+            T($"{FgaTypes.Roster}:{roster}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T("user:*",        FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"));
 
-        await DeleteAsync(D("user:*", FgaRelations.Viewer, $"{FgaTypes.Collection}:{coll}"));
+        await DeleteAsync(D("user:*", FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"));
 
         Assert.False(await CanAsync($"user:{eve}", FgaRelations.CanView, $"{FgaTypes.CardInstance}:{inst}"));
     }
 
-    // ── Scenario C: Direct share survives collection revoke ───────────────────
+    // ── Scenario C: Direct share survives roster revoke ───────────────────────
 
     [Fact]
-    public async Task DirectShare_PersistsAfterCollectionRevoke()
+    public async Task DirectShare_PersistsAfterRosterRevoke()
     {
-        var (alice, bob, inst, coll) = (Id(), Id(), Id(), Id());
+        var (alice, bob, inst, roster) = (Id(), Id(), Id(), Id());
         await WriteAsync(
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.Collection}:{coll}"),
-            T($"{FgaTypes.Collection}:{coll}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{bob}",   FgaRelations.Viewer,  $"{FgaTypes.Collection}:{coll}"),
-            T($"user:{bob}",   FgaRelations.Viewer,  $"{FgaTypes.CardInstance}:{inst}"));
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{roster}"),
+            T($"{FgaTypes.Roster}:{roster}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{bob}",   FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"),
+            T($"user:{bob}",   FgaRelations.Viewer, $"{FgaTypes.CardInstance}:{inst}"));
 
-        // Revoke collection share only
-        await DeleteAsync(D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.Collection}:{coll}"));
+        // Revoke roster share only
+        await DeleteAsync(D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"));
 
         // Direct share is still in effect
         Assert.True(await CanAsync($"user:{bob}", FgaRelations.CanView, $"{FgaTypes.CardInstance}:{inst}"));
@@ -90,56 +90,56 @@ public sealed class CardInstanceVisibilityTests(OpenFgaFixture fixture)
     [Fact]
     public async Task RevokingBothShares_DeniesAccess()
     {
-        var (alice, bob, inst, coll) = (Id(), Id(), Id(), Id());
+        var (alice, bob, inst, roster) = (Id(), Id(), Id(), Id());
         await WriteAsync(
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.Collection}:{coll}"),
-            T($"{FgaTypes.Collection}:{coll}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{bob}",   FgaRelations.Viewer,  $"{FgaTypes.Collection}:{coll}"),
-            T($"user:{bob}",   FgaRelations.Viewer,  $"{FgaTypes.CardInstance}:{inst}"));
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{roster}"),
+            T($"{FgaTypes.Roster}:{roster}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{bob}",   FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"),
+            T($"user:{bob}",   FgaRelations.Viewer, $"{FgaTypes.CardInstance}:{inst}"));
 
         await DeleteAsync(
-            D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.Collection}:{coll}"),
+            D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"),
             D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.CardInstance}:{inst}"));
 
         Assert.False(await CanAsync($"user:{bob}", FgaRelations.CanView, $"{FgaTypes.CardInstance}:{inst}"));
     }
 
-    // ── Scenario D: Multi-collection — revoking one collection isn't enough ───
+    // ── Scenario D: Multi-roster — revoking one isn't enough ──────────────────
 
     [Fact]
-    public async Task InstanceInTwoCollections_RevokingOne_StillDeniesIfOtherAlsoRevoked()
+    public async Task InstanceInTwoRosters_RevokingOne_StillDeniesIfOtherAlsoRevoked()
     {
-        var (alice, bob, inst, collA, collB) = (Id(), Id(), Id(), Id(), Id());
+        var (alice, bob, inst, rosterA, rosterB) = (Id(), Id(), Id(), Id(), Id());
         await WriteAsync(
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.Collection}:{collA}"),
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.Collection}:{collB}"),
-            T($"{FgaTypes.Collection}:{collA}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T($"{FgaTypes.Collection}:{collB}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{bob}",   FgaRelations.Viewer,  $"{FgaTypes.Collection}:{collA}"));
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{rosterA}"),
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{rosterB}"),
+            T($"{FgaTypes.Roster}:{rosterA}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T($"{FgaTypes.Roster}:{rosterB}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{bob}",   FgaRelations.Viewer, $"{FgaTypes.Roster}:{rosterA}"));
 
-        // Revoke collA — bob was never on collB, so access disappears
-        await DeleteAsync(D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.Collection}:{collA}"));
+        // Revoke rosterA — bob was never on rosterB, so access disappears
+        await DeleteAsync(D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.Roster}:{rosterA}"));
 
         Assert.False(await CanAsync($"user:{bob}", FgaRelations.CanView, $"{FgaTypes.CardInstance}:{inst}"));
     }
 
     [Fact]
-    public async Task InstanceInTwoCollections_AccessViaSecondCollection_AfterFirstRevoked()
+    public async Task InstanceInTwoRosters_AccessViaSecondRoster_AfterFirstRevoked()
     {
-        var (alice, bob, inst, collA, collB) = (Id(), Id(), Id(), Id(), Id());
+        var (alice, bob, inst, rosterA, rosterB) = (Id(), Id(), Id(), Id(), Id());
         await WriteAsync(
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.Collection}:{collA}"),
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.Collection}:{collB}"),
-            T($"{FgaTypes.Collection}:{collA}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T($"{FgaTypes.Collection}:{collB}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{bob}",   FgaRelations.Viewer,  $"{FgaTypes.Collection}:{collA}"),
-            T($"user:{bob}",   FgaRelations.Viewer,  $"{FgaTypes.Collection}:{collB}"));
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{rosterA}"),
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{rosterB}"),
+            T($"{FgaTypes.Roster}:{rosterA}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T($"{FgaTypes.Roster}:{rosterB}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{bob}",   FgaRelations.Viewer, $"{FgaTypes.Roster}:{rosterA}"),
+            T($"user:{bob}",   FgaRelations.Viewer, $"{FgaTypes.Roster}:{rosterB}"));
 
-        // Revoke only collA — bob retains access via collB
-        await DeleteAsync(D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.Collection}:{collA}"));
+        // Revoke only rosterA — bob retains access via rosterB
+        await DeleteAsync(D($"user:{bob}", FgaRelations.Viewer, $"{FgaTypes.Roster}:{rosterA}"));
 
         Assert.True(await CanAsync($"user:{bob}", FgaRelations.CanView, $"{FgaTypes.CardInstance}:{inst}"));
     }
@@ -159,12 +159,12 @@ public sealed class CardInstanceVisibilityTests(OpenFgaFixture fixture)
     [Fact]
     public async Task NonOwner_CannotTradeInstance_EvenWithViewAccess()
     {
-        var (alice, bob, inst, coll) = (Id(), Id(), Id(), Id());
+        var (alice, bob, inst, roster) = (Id(), Id(), Id(), Id());
         await WriteAsync(
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{alice}", FgaRelations.Owner,   $"{FgaTypes.Collection}:{coll}"),
-            T($"{FgaTypes.Collection}:{coll}", FgaRelations.Collection, $"{FgaTypes.CardInstance}:{inst}"),
-            T($"user:{bob}",   FgaRelations.Viewer,  $"{FgaTypes.Collection}:{coll}"));
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{alice}", FgaRelations.Owner,  $"{FgaTypes.Roster}:{roster}"),
+            T($"{FgaTypes.Roster}:{roster}", FgaRelations.Roster, $"{FgaTypes.CardInstance}:{inst}"),
+            T($"user:{bob}",   FgaRelations.Viewer, $"{FgaTypes.Roster}:{roster}"));
 
         Assert.True(await CanAsync($"user:{bob}", FgaRelations.CanView,  $"{FgaTypes.CardInstance}:{inst}"));
         Assert.False(await CanAsync($"user:{bob}", FgaRelations.CanTrade, $"{FgaTypes.CardInstance}:{inst}"));

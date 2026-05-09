@@ -20,11 +20,11 @@ internal sealed class CardInstanceConfiguration : IEntityTypeConfiguration<CardI
             .HasConversion(id => id.Value, guid => new UserId(guid))
             .IsRequired();
         builder.Property(c => c.PrintNumber).IsRequired();
-        builder.Property(c => c.CollectionId)
+        builder.Property(c => c.RosterId)
             .HasConversion(
                 v => v == null ? (Guid?)null : v.Value.Value,
-                v => v == null ? (CollectionId?)null : new CollectionId(v.Value))
-            .HasColumnName("collection_id")
+                v => v == null ? (RosterId?)null : new RosterId(v.Value))
+            .HasColumnName("roster_id")
             .IsRequired(false);
         builder.Ignore(c => c.DomainEvents);
     }
