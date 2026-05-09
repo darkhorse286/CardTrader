@@ -30,6 +30,21 @@ public class TradeProposalServiceTests
         return p;
     }
 
+    // ── GetInvolvingUserAsync ─────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetInvolvingUserAsync_DelegatesToRepository()
+    {
+        var userId = UserId.New();
+        var (id, initiator, recipient) = MakeIds();
+        var expected = new List<TradeProposal> { MakeProposal(id, initiator, recipient) };
+        _proposals.GetInvolvingUserAsync(userId, Arg.Any<CancellationToken>()).Returns(expected);
+
+        var result = await _sut.GetInvolvingUserAsync(userId);
+
+        Assert.Equal(expected, result);
+    }
+
     // ── CreateAsync ───────────────────────────────────────────────────────────
 
     [Fact]

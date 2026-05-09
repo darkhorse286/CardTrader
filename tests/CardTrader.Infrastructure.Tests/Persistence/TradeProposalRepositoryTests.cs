@@ -64,6 +64,32 @@ public class TradeProposalRepositoryTests
     }
 
     [Fact]
+    public async Task GetInvolvingUserAsync_ReturnsOnlyInvolvingProposals()
+    {
+        var dbName = nameof(GetInvolvingUserAsync_ReturnsOnlyInvolvingProposals);
+        var target = UserId.New();
+        var other1 = UserId.New();
+        var other2 = UserId.New();
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var repo = new TradeProposalRepository(ctx);
+            // target is initiator
+            await repo.AddAsync(TradeProposal.Create(TradeProposalId.New(), target, other1));
+            // target is recipient
+            await repo.AddAsync(TradeProposal.Create(TradeProposalId.New(), other1, target));
+            // target not involved
+            await repo.AddAsync(TradeProposal.Create(TradeProposalId.New(), other1, other2));
+        }
+
+        await using var readCtx = CreateContext(dbName);
+        var results = await new TradeProposalRepository(readCtx).GetInvolvingUserAsync(target);
+
+        Assert.Equal(2, results.Count);
+        Assert.All(results, p => Assert.True(p.InitiatorId == target || p.RecipientId == target));
+    }
+
+    [Fact]
     public async Task UpdateAsync_PersistsStatusChange()
     {
         var dbName = nameof(UpdateAsync_PersistsStatusChange);
