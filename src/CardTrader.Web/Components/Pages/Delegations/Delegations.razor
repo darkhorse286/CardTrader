@@ -95,7 +95,7 @@
                                                            @bind="_expiryDate" />
                                                     <button class="btn btn-warning btn-sm"
                                                             @onclick="() => ConfirmActivateWithExpiryAsync(d.Id)"
-                                                            disabled="@(string.IsNullOrEmpty(_expiryDate) || _saving)">
+                                                            disabled="@(_expiryDate is null || _saving)">
                                                         Confirm
                                                     </button>
                                                     <button class="btn btn-outline-secondary btn-sm"
@@ -191,7 +191,7 @@
     private UserId _currentUserId;
 
     private DelegationId? _activatingWithExpiry;
-    private string _expiryDate = "";
+    private DateTime? _expiryDate;
 
     protected override async Task OnInitializedAsync()
     {
@@ -230,13 +230,13 @@
     private void BeginActivateWithExpiry(DelegationId id)
     {
         _activatingWithExpiry = id;
-        _expiryDate = "";
+        _expiryDate = null;
     }
 
     private void CancelExpiryMode()
     {
         _activatingWithExpiry = null;
-        _expiryDate = "";
+        _expiryDate = null;
     }
 
     private async Task CreateAsync()
