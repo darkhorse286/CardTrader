@@ -12,12 +12,13 @@ public class TradeProposalServiceTests
 {
     private readonly ITradeProposalRepository _proposals = Substitute.For<ITradeProposalRepository>();
     private readonly IAuthorizationService _authz = Substitute.For<IAuthorizationService>();
+    private readonly IAdminService _admin = Substitute.For<IAdminService>();
     private readonly IDomainEventDispatcher _dispatcher = Substitute.For<IDomainEventDispatcher>();
     private readonly TradeProposalService _sut;
 
     public TradeProposalServiceTests()
     {
-        _sut = new TradeProposalService(_proposals, _authz, _dispatcher);
+        _sut = new TradeProposalService(_proposals, _authz, _admin, _dispatcher);
     }
 
     private static (TradeProposalId, UserId, UserId) MakeIds() =>
@@ -174,5 +175,46 @@ public class TradeProposalServiceTests
         _proposals.GetByIdAsync(Arg.Any<TradeProposalId>(), Arg.Any<CancellationToken>()).Returns((TradeProposal?)null);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.CancelAsync(TradeProposalId.New(), UserId.New()));
+    }
+
+    [Fact]
+    public async Task CancelAsync_WhenAdmin_BypassesFgaAndCancels()
+    {
+        var (id, initiator, recipient) = MakeIds();
+        var adminId = UserId.New();
+        var proposal = MakeProposal(id, initiator, recipient);
+        _proposals.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(proposal);
+        _admin.IsAdminAsync(adminId, Arg.Any<CancellationToken>()).Returns(true);
+
+        await _sut.CancelAsync(id, adminId);
+
+        await _proposals.Received().UpdateAsync(Arg.Is<TradeProposal>(p => p.Id == id), Arg.Any<CancellationToken>());
+        await _authz.DidNotReceive().CheckAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    // ── GetAllPendingAsync ────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetAllPendingAsync_WhenAdmin_ReturnsPendingProposals()
+    {
+        var adminId = UserId.New();
+        var (id, initiator, recipient) = MakeIds();
+        var expected = new List<TradeProposal> { MakeProposal(id, initiator, recipient) };
+        _admin.IsAdminAsync(adminId, Arg.Any<CancellationToken>()).Returns(true);
+        _proposals.GetAllPendingAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<TradeProposal>>(expected));
+
+        var result = await _sut.GetAllPendingAsync(adminId);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public async Task GetAllPendingAsync_WhenNotAdmin_Throws()
+    {
+        _admin.IsAdminAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>()).Returns(false);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _sut.GetAllPendingAsync(UserId.New()));
     }
 }

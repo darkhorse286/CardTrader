@@ -2,7 +2,6 @@ using CardTrader.Application.Abstractions;
 using CardTrader.Identity.Persistence;
 using CardTrader.Identity.Services;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
