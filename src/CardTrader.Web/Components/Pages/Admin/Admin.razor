@@ -1,0 +1,246 @@
+@page "/admin"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject TradeProposalService TradeSvc
+@inject CardService CardSvc
+@inject ICurrentUser CurrentUser
+@inject IUserLookup UserLookup
+@inject IAdminService AdminSvc
+
+<PageTitle>Admin</PageTitle>
+
+<h1 class="mb-4">Admin</h1>
+
+@if (_loading)
+{
+    <p class="text-muted">Loading…</p>
+}
+else if (!_isAdmin)
+{
+    <div class="alert alert-danger">
+        You do not have admin access.
+    </div>
+}
+else
+{
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger alert-dismissible">
+            @_error
+            <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+        </div>
+    }
+    @if (_success is not null)
+    {
+        <div class="alert alert-success alert-dismissible">
+            @_success
+            <button type="button" class="btn-close" @onclick="() => _success = null"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+
+        <!-- ── Add Card ─────────────────────────────────────────────────── -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">Add Card to Catalogue</div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Player Name <span class="text-danger">*</span></label>
+                            <input class="form-control" placeholder="e.g. Michael Jordan"
+                                   @bind="_newPlayerName" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Card Name <span class="text-danger">*</span></label>
+                            <input class="form-control" placeholder="e.g. Michael Jordan Retirement"
+                                   @bind="_newName" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Set Name <span class="text-danger">*</span></label>
+                            <input class="form-control" placeholder="e.g. Legends Series"
+                                   @bind="_newSetName" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted">Rarity <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="_newRarity">
+                                <option value="">— select —</option>
+                                <option>Common</option>
+                                <option>Uncommon</option>
+                                <option>Rare</option>
+                                <option>Ultra Rare</option>
+                                <option>Legendary</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted">Position</label>
+                            <select class="form-select" @bind="_newPosition">
+                                <option value="">— none —</option>
+                                <option>Attack</option>
+                                <option>Midfield</option>
+                                <option>Defense</option>
+                                <option>Goalie</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted">Team</label>
+                            <input class="form-control" placeholder="e.g. Chicago Bulls"
+                                   @bind="_newTeamName" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted">Print Run <span class="text-danger">*</span></label>
+                            <input class="form-control" type="number" min="1" placeholder="e.g. 500"
+                                   @bind="_newPrintRun" @bind:event="oninput" />
+                        </div>
+                        <div class="col-12">
+                            <button class="btn btn-primary"
+                                    @onclick="AddCardAsync"
+                                    disabled="@(!CanAddCard || _saving)">
+                                Add to Catalogue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Pending Trades ───────────────────────────────────────────── -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>All Pending Trades</span>
+                    <span class="badge bg-secondary">@_pendingTrades.Count</span>
+                </div>
+                <div class="card-body p-0">
+                    @if (_pendingTrades.Count == 0)
+                    {
+                        <p class="text-muted p-3 mb-0">No pending trades.</p>
+                    }
+                    else
+                    {
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Initiator</th>
+                                    <th>Recipient</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in _pendingTrades)
+                                {
+                                    <tr>
+                                        <td>@DisplayEmail(t.InitiatorId)</td>
+                                        <td>@DisplayEmail(t.RecipientId)</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-outline-danger btn-sm"
+                                                    @onclick="() => CancelTradeAsync(t.Id)"
+                                                    disabled="@_saving">
+                                                Cancel
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _isAdmin;
+    private string? _error;
+    private string? _success;
+    private bool _saving;
+    private UserId _currentUserId;
+
+    private List<TradeProposal> _pendingTrades = [];
+    private Dictionary<UserId, string> _userEmails = new();
+
+    // Card form
+    private string _newName = "";
+    private string _newPlayerName = "";
+    private string _newSetName = "";
+    private string _newRarity = "";
+    private string _newPosition = "";
+    private string _newTeamName = "";
+    private int? _newPrintRun;
+
+    private bool CanAddCard =>
+        !string.IsNullOrWhiteSpace(_newName) &&
+        !string.IsNullOrWhiteSpace(_newPlayerName) &&
+        !string.IsNullOrWhiteSpace(_newSetName) &&
+        !string.IsNullOrWhiteSpace(_newRarity) &&
+        _newPrintRun is >= 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _currentUserId = await CurrentUser.GetUserIdAsync();
+            _isAdmin = await AdminSvc.IsAdminAsync(_currentUserId);
+            if (_isAdmin)
+                await LoadTradesAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task LoadTradesAsync()
+    {
+        var trades = await TradeSvc.GetAllPendingAsync(_currentUserId);
+        _pendingTrades = trades.ToList();
+
+        foreach (var id in _pendingTrades.SelectMany(t => new[] { t.InitiatorId, t.RecipientId }).Distinct())
+            if (!_userEmails.ContainsKey(id))
+                _userEmails[id] = await UserLookup.GetEmailByIdAsync(id) ?? id.Value.ToString()[..8] + "…";
+    }
+
+    private string DisplayEmail(UserId id) =>
+        _userEmails.TryGetValue(id, out var email) ? email : id.Value.ToString()[..8] + "…";
+
+    private async Task AddCardAsync()
+    {
+        if (!CanAddCard) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            await CardSvc.AddAsync(
+                CardId.New(),
+                _newName.Trim(),
+                _newSetName.Trim(),
+                _newRarity,
+                _newPlayerName.Trim(),
+                _newPrintRun!.Value,
+                _currentUserId,
+                string.IsNullOrWhiteSpace(_newPosition) ? null : _newPosition,
+                string.IsNullOrWhiteSpace(_newTeamName) ? null : _newTeamName.Trim());
+
+            _success = $"'{_newName.Trim()}' added to the catalogue.";
+            _newName = _newPlayerName = _newSetName = _newRarity = _newPosition = _newTeamName = "";
+            _newPrintRun = null;
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to add cards."; }
+        catch (ArgumentException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task CancelTradeAsync(TradeProposalId id)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            await TradeSvc.CancelAsync(id, _currentUserId);
+            _success = "Trade cancelled.";
+            await LoadTradesAsync();
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to cancel this trade."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+}
