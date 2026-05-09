@@ -1,0 +1,114 @@
+@page "/cards"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject CardService CardSvc
+
+<PageTitle>Card Catalogue</PageTitle>
+
+<h1 class="mb-4">Card Catalogue</h1>
+
+@if (_loading)
+{
+    <p class="text-muted">Loading…</p>
+}
+else
+{
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+        @foreach (var pos in new[] { "", "Attack", "Midfield", "Defense", "Goalie" })
+        {
+            <button class="btn btn-sm @(pos == _filter ? "btn-primary" : "btn-outline-secondary")"
+                    @onclick="() => _filter = pos">
+                @(pos == "" ? "All" : pos)
+                <span class="badge @(pos == _filter ? "bg-light text-dark" : "bg-secondary") ms-1">
+                    @(pos == "" ? _cards.Count : _cards.Count(c => c.PlayerPosition == pos))
+                </span>
+            </button>
+        }
+    </div>
+
+    @if (FilteredCards.Count == 0)
+    {
+        <div class="alert alert-info">No cards in the catalogue yet. Start the application to seed demo cards.</div>
+    }
+    else
+    {
+        @foreach (var group in FilteredCards.GroupBy(c => c.SetName).OrderBy(g => g.Key))
+        {
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">@group.Key</span>
+                    <span class="badge bg-secondary">@group.Count()</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Player</th>
+                                <th>Position</th>
+                                <th>Team</th>
+                                <th>Rarity</th>
+                                <th class="text-end">Print Run</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var card in group.OrderBy(c => c.PlayerPosition).ThenBy(c => c.PlayerName))
+                            {
+                                <tr>
+                                    <td>@card.PlayerName</td>
+                                    <td>
+                                        @if (card.PlayerPosition is { } pos)
+                                        {
+                                            <span class="badge @PositionClass(pos)">@pos</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td>@(card.TeamName ?? "—")</td>
+                                    <td><span class="badge @RarityClass(card.Rarity)">@card.Rarity</span></td>
+                                    <td class="text-end">@card.PrintRun.ToString("N0")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private IReadOnlyList<Card> _cards = [];
+    private string _filter = "";
+
+    private IReadOnlyList<Card> FilteredCards =>
+        string.IsNullOrEmpty(_filter)
+            ? _cards
+            : _cards.Where(c => c.PlayerPosition == _filter).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cards = await CardSvc.GetAllAsync();
+        _loading = false;
+    }
+
+    private static string PositionClass(string pos) => pos switch
+    {
+        "Attack"  => "bg-danger",
+        "Midfield" => "bg-warning text-dark",
+        "Defense" => "bg-primary",
+        "Goalie"  => "bg-success",
+        _         => "bg-secondary",
+    };
+
+    private static string RarityClass(string rarity) => rarity switch
+    {
+        "Legendary"  => "bg-warning text-dark",
+        "Ultra Rare" => "bg-danger",
+        "Rare"       => "bg-primary",
+        "Uncommon"   => "bg-info text-dark",
+        _            => "bg-secondary",
+    };
+}
