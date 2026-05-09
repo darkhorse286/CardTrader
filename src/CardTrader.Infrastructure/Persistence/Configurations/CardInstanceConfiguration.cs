@@ -26,6 +26,7 @@ internal sealed class CardInstanceConfiguration : IEntityTypeConfiguration<CardI
                 v => v == null ? (RosterId?)null : new RosterId(v.Value))
             .HasColumnName("roster_id")
             .IsRequired(false);
+        builder.HasIndex(ci => new { ci.CardId, ci.PrintNumber }).IsUnique();
         builder.Ignore(c => c.DomainEvents);
     }
 }

@@ -115,6 +115,54 @@ public class CardInstanceRepositoryTests
     }
 
     [Fact]
+    public async Task ExistsByCardAndPrintNumberAsync_ReturnsFalse_WhenNoneExist()
+    {
+        await using var ctx = CreateContext(nameof(ExistsByCardAndPrintNumberAsync_ReturnsFalse_WhenNoneExist));
+        var card = SeedCard(ctx);
+
+        var result = await new CardInstanceRepository(ctx).ExistsByCardAndPrintNumberAsync(card.Id, 1);
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task ExistsByCardAndPrintNumberAsync_ReturnsTrue_WhenMatchExists()
+    {
+        var dbName = nameof(ExistsByCardAndPrintNumberAsync_ReturnsTrue_WhenMatchExists);
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var card = SeedCard(ctx);
+            var instance = CardInstance.Create(CardInstanceId.New(), card.Id, UserId.New(), printNumber: 5);
+            await new CardInstanceRepository(ctx).AddAsync(instance);
+        }
+
+        await using var readCtx = CreateContext(dbName);
+        var card2 = await readCtx.Cards.FirstAsync();
+        var result = await new CardInstanceRepository(readCtx).ExistsByCardAndPrintNumberAsync(card2.Id, 5);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public async Task ExistsByCardAndPrintNumberAsync_ReturnsFalse_WhenDifferentCard()
+    {
+        var dbName = nameof(ExistsByCardAndPrintNumberAsync_ReturnsFalse_WhenDifferentCard);
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var card = SeedCard(ctx);
+            var instance = CardInstance.Create(CardInstanceId.New(), card.Id, UserId.New(), printNumber: 5);
+            await new CardInstanceRepository(ctx).AddAsync(instance);
+        }
+
+        await using var readCtx = CreateContext(dbName);
+        var result = await new CardInstanceRepository(readCtx).ExistsByCardAndPrintNumberAsync(CardId.New(), 5);
+
+        Assert.False(result);
+    }
+
+    [Fact]
     public async Task UpdateAsync_PersistsRosterIdChange()
     {
         var dbName = nameof(UpdateAsync_PersistsRosterIdChange);

@@ -22,7 +22,13 @@ public class CardInstanceServiceTests
         _sut = new CardInstanceService(_instances, _cards, _authz, _dispatcher);
         _instances.GetByRosterAsync(Arg.Any<RosterId>(), Arg.Any<CancellationToken>())
             .Returns((IReadOnlyList<CardInstance>)[]);
+        _instances.ExistsByCardAndPrintNumberAsync(Arg.Any<CardId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(false);
     }
+
+    private void SimulateDuplicatePrintNumber() =>
+        _instances.ExistsByCardAndPrintNumberAsync(Arg.Any<CardId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(true);
 
     private static CardInstance MakeInstance(CardInstanceId id, UserId owner)
     {
@@ -58,6 +64,15 @@ public class CardInstanceServiceTests
         var result = await _sut.CreateAsync(CardInstanceId.New(), CardId.New(), UserId.New(), printNumber: 1);
 
         Assert.Empty(result.DomainEvents);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenDuplicatePrintNumber_Throws()
+    {
+        SimulateDuplicatePrintNumber();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _sut.CreateAsync(CardInstanceId.New(), CardId.New(), UserId.New(), printNumber: 1));
     }
 
     // ── AddToRosterAsync ──────────────────────────────────────────────────────
@@ -163,6 +178,15 @@ public class CardInstanceServiceTests
             CardInstanceId.New(), CardId.New(), UserId.New(), 1, RosterId.New());
 
         Assert.Empty(result.DomainEvents);
+    }
+
+    [Fact]
+    public async Task MintAndAddToRosterAsync_WhenDuplicatePrintNumber_Throws()
+    {
+        SimulateDuplicatePrintNumber();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _sut.MintAndAddToRosterAsync(CardInstanceId.New(), CardId.New(), UserId.New(), 1, RosterId.New()));
     }
 
     [Fact]

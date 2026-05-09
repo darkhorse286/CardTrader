@@ -17,6 +17,7 @@ public sealed class CardInstanceService(
     public async Task<CardInstance> CreateAsync(
         CardInstanceId id, CardId cardId, UserId ownerId, int printNumber, CancellationToken ct = default)
     {
+        await GuardPrintNumberUniqueAsync(cardId, printNumber, ct);
         var instance = CardInstance.Create(id, cardId, ownerId, printNumber);
         await instances.AddAsync(instance, ct);
         await dispatcher.DispatchAsync(instance.DomainEvents, ct);
@@ -28,6 +29,7 @@ public sealed class CardInstanceService(
         CardInstanceId id, CardId cardId, UserId ownerId, int printNumber, RosterId rosterId,
         CancellationToken ct = default)
     {
+        await GuardPrintNumberUniqueAsync(cardId, printNumber, ct);
         await ValidateRosterSlotAsync(cardId, rosterId, ct);
 
         var instance = CardInstance.Create(id, cardId, ownerId, printNumber);
@@ -62,6 +64,13 @@ public sealed class CardInstanceService(
         await instances.UpdateAsync(instance, ct);
         await dispatcher.DispatchAsync(instance.DomainEvents, ct);
         instance.ClearDomainEvents();
+    }
+
+    private async Task GuardPrintNumberUniqueAsync(CardId cardId, int printNumber, CancellationToken ct)
+    {
+        if (await instances.ExistsByCardAndPrintNumberAsync(cardId, printNumber, ct))
+            throw new InvalidOperationException(
+                $"Print #{printNumber} for card {cardId} already exists.");
     }
 
     private async Task ValidateRosterSlotAsync(CardId cardId, RosterId rosterId, CancellationToken ct)
