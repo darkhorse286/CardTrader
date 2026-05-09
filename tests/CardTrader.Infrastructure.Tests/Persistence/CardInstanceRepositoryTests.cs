@@ -45,7 +45,7 @@ public class CardInstanceRepositoryTests
         {
             var card = SeedCard(writeCtx);
             cardId = card.Id;
-            var instance = CardInstance.Create(instanceId, cardId, ownerId, printNumber: 42);
+            var instance = CardInstance.Create(instanceId, cardId, ownerId, printNumber: 42, printRun: 100);
             await new CardInstanceRepository(writeCtx).AddAsync(instance);
         }
 
@@ -67,7 +67,7 @@ public class CardInstanceRepositoryTests
         await using (var writeCtx = CreateContext(dbName))
         {
             var card = SeedCard(writeCtx);
-            var instance = CardInstance.Create(instanceId, card.Id, ownerId, printNumber: 7);
+            var instance = CardInstance.Create(instanceId, card.Id, ownerId, printNumber: 7, printRun: 100);
             await new CardInstanceRepository(writeCtx).AddAsync(instance);
         }
 
@@ -92,13 +92,13 @@ public class CardInstanceRepositoryTests
             var card = SeedCard(ctx);
             var owner = UserId.New();
 
-            var inRoster = CardInstance.Create(CardInstanceId.New(), card.Id, owner, 1);
+            var inRoster = CardInstance.Create(CardInstanceId.New(), card.Id, owner, 1, 100);
             inRoster.AddToRoster(rosterId);
 
-            var alsoIn = CardInstance.Create(CardInstanceId.New(), card.Id, owner, 2);
+            var alsoIn = CardInstance.Create(CardInstanceId.New(), card.Id, owner, 2, 100);
             alsoIn.AddToRoster(rosterId);
 
-            var notIn = CardInstance.Create(CardInstanceId.New(), card.Id, owner, 3);
+            var notIn = CardInstance.Create(CardInstanceId.New(), card.Id, owner, 3, 100);
             notIn.AddToRoster(otherId);
 
             var repo = new CardInstanceRepository(ctx);
@@ -133,7 +133,7 @@ public class CardInstanceRepositoryTests
         await using (var ctx = CreateContext(dbName))
         {
             var card = SeedCard(ctx);
-            var instance = CardInstance.Create(CardInstanceId.New(), card.Id, UserId.New(), printNumber: 5);
+            var instance = CardInstance.Create(CardInstanceId.New(), card.Id, UserId.New(), printNumber: 5, printRun: 100);
             await new CardInstanceRepository(ctx).AddAsync(instance);
         }
 
@@ -152,7 +152,7 @@ public class CardInstanceRepositoryTests
         await using (var ctx = CreateContext(dbName))
         {
             var card = SeedCard(ctx);
-            var instance = CardInstance.Create(CardInstanceId.New(), card.Id, UserId.New(), printNumber: 5);
+            var instance = CardInstance.Create(CardInstanceId.New(), card.Id, UserId.New(), printNumber: 5, printRun: 100);
             await new CardInstanceRepository(ctx).AddAsync(instance);
         }
 
@@ -172,7 +172,7 @@ public class CardInstanceRepositoryTests
         await using (var ctx = CreateContext(dbName))
         {
             var card = SeedCard(ctx);
-            var instance = CardInstance.Create(instanceId, card.Id, UserId.New(), 1);
+            var instance = CardInstance.Create(instanceId, card.Id, UserId.New(), 1, 100);
             await new CardInstanceRepository(ctx).AddAsync(instance);
         }
 

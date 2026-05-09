@@ -16,7 +16,7 @@ public sealed class CardInstanceTests
     [Fact]
     public void Create_SetsProperties()
     {
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 42);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 42, printRun: 100);
 
         Assert.Equal(InstanceId, instance.Id);
         Assert.Equal(CardId, instance.CardId);
@@ -27,7 +27,7 @@ public sealed class CardInstanceTests
     [Fact]
     public void Create_RaisesCardInstanceCreated()
     {
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1, printRun: 100);
 
         var evt = Assert.Single(instance.DomainEvents);
         var created = Assert.IsType<CardInstanceCreated>(evt);
@@ -41,14 +41,29 @@ public sealed class CardInstanceTests
     [InlineData(-1)]
     public void Create_PrintNumberLessThanOne_Throws(int printNumber)
         => Assert.Throws<ArgumentOutOfRangeException>(
-            () => CardInstance.Create(InstanceId, CardId, OwnerId, printNumber));
+            () => CardInstance.Create(InstanceId, CardId, OwnerId, printNumber, printRun: 100));
+
+    [Fact]
+    public void Create_PrintNumberEqualsPrintRun_Succeeds()
+    {
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 100, printRun: 100);
+
+        Assert.Equal(100, instance.PrintNumber);
+    }
+
+    [Theory]
+    [InlineData(101, 100)]
+    [InlineData(1, 0)]
+    public void Create_PrintNumberExceedsPrintRun_Throws(int printNumber, int printRun)
+        => Assert.Throws<ArgumentOutOfRangeException>(
+            () => CardInstance.Create(InstanceId, CardId, OwnerId, printNumber, printRun));
 
     // ── AddToRoster ──────────────────────────────────────────────────────────
 
     [Fact]
     public void AddToRoster_RaisesCardInstanceAddedToRoster()
     {
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1, printRun: 100);
         instance.ClearDomainEvents();
 
         instance.AddToRoster(RosterId);
@@ -64,7 +79,7 @@ public sealed class CardInstanceTests
     [Fact]
     public void RemoveFromRoster_RaisesCardInstanceRemovedFromRoster()
     {
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1, printRun: 100);
         instance.ClearDomainEvents();
 
         instance.RemoveFromRoster(RosterId);
@@ -82,7 +97,7 @@ public sealed class CardInstanceTests
     {
         var rosterA = RosterId.New();
         var rosterB = RosterId.New();
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1, printRun: 100);
         instance.ClearDomainEvents();
 
         instance.AddToRoster(rosterA);
@@ -98,7 +113,7 @@ public sealed class CardInstanceTests
     [Fact]
     public void ClearDomainEvents_EmptiesList()
     {
-        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
+        var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1, printRun: 100);
         Assert.NotEmpty(instance.DomainEvents);
 
         instance.ClearDomainEvents();
