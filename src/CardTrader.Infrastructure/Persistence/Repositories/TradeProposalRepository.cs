@@ -1,4 +1,5 @@
 using CardTrader.Domain.Entities;
+using CardTrader.Domain.Enums;
 using CardTrader.Domain.Repositories;
 using CardTrader.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,11 @@ internal sealed class TradeProposalRepository(AppDbContext db) : ITradeProposalR
     public async Task<IReadOnlyList<TradeProposal>> GetInvolvingUserAsync(UserId userId, CancellationToken ct = default)
         => await db.TradeProposals
             .Where(p => p.InitiatorId == userId || p.RecipientId == userId)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<TradeProposal>> GetAllPendingAsync(CancellationToken ct = default)
+        => await db.TradeProposals
+            .Where(p => p.Status == TradeProposalStatus.Pending)
             .ToListAsync(ct);
 
     public async Task AddAsync(TradeProposal proposal, CancellationToken ct = default)
