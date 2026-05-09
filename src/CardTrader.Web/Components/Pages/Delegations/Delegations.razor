@@ -277,11 +277,12 @@
 
     private async Task ConfirmActivateWithExpiryAsync(DelegationId id)
     {
-        if (!DateTimeOffset.TryParse(_expiryDate, out var expiresAt))
+        if (_expiryDate is null)
         {
-            _error = "Invalid date.";
+            _error = "Please select an expiry date.";
             return;
         }
+        var expiresAt = new DateTimeOffset(_expiryDate.Value, TimeSpan.Zero);
         if (expiresAt <= DateTimeOffset.UtcNow)
         {
             _error = "Expiry date must be in the future.";
