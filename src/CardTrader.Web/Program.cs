@@ -2,6 +2,7 @@ using CardTrader.Application;
 using CardTrader.Identity;
 using CardTrader.Infrastructure;
 using CardTrader.Web.Components;
+using CardTrader.Web.Seeding;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +16,8 @@ builder.Services.AddRazorComponents()
 builder.Services.AddCascadingAuthenticationState();
 
 var app = builder.Build();
+
+await DemoDataSeeder.SeedAsync(app.Services);
 
 if (!app.Environment.IsDevelopment())
 {
