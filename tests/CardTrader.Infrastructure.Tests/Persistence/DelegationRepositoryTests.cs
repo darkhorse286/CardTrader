@@ -114,4 +114,52 @@ public class DelegationRepositoryTests
         Assert.True(stored.IsActive);
         Assert.NotNull(stored.ExpiresAt);
     }
+
+    [Fact]
+    public async Task GetByDelegatorAsync_ReturnsOnlyDelegatorsDelegations()
+    {
+        var dbName = nameof(GetByDelegatorAsync_ReturnsOnlyDelegatorsDelegations);
+        var delegatorId = UserId.New();
+        var d1 = Delegation.Create(DelegationId.New(), delegatorId, UserId.New());
+        var d2 = Delegation.Create(DelegationId.New(), delegatorId, UserId.New());
+        var other = Delegation.Create(DelegationId.New(), UserId.New(), delegatorId);
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var repo = new DelegationRepository(ctx);
+            await repo.AddAsync(d1);
+            await repo.AddAsync(d2);
+            await repo.AddAsync(other);
+        }
+
+        await using var readCtx = CreateContext(dbName);
+        var result = await new DelegationRepository(readCtx).GetByDelegatorAsync(delegatorId);
+
+        Assert.Equal(2, result.Count);
+        Assert.All(result, d => Assert.Equal(delegatorId, d.DelegatorId));
+    }
+
+    [Fact]
+    public async Task GetByDelegateeAsync_ReturnsOnlyDelegateeDelegations()
+    {
+        var dbName = nameof(GetByDelegateeAsync_ReturnsOnlyDelegateeDelegations);
+        var delegateeId = UserId.New();
+        var d1 = Delegation.Create(DelegationId.New(), UserId.New(), delegateeId);
+        var d2 = Delegation.Create(DelegationId.New(), UserId.New(), delegateeId);
+        var other = Delegation.Create(DelegationId.New(), delegateeId, UserId.New());
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var repo = new DelegationRepository(ctx);
+            await repo.AddAsync(d1);
+            await repo.AddAsync(d2);
+            await repo.AddAsync(other);
+        }
+
+        await using var readCtx = CreateContext(dbName);
+        var result = await new DelegationRepository(readCtx).GetByDelegateeAsync(delegateeId);
+
+        Assert.Equal(2, result.Count);
+        Assert.All(result, d => Assert.Equal(delegateeId, d.DelegateeId));
+    }
 }

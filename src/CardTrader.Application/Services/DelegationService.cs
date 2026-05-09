@@ -55,6 +55,12 @@ public sealed class DelegationService(
         delegation.ClearDomainEvents();
     }
 
+    public Task<IReadOnlyList<Delegation>> GetOutgoingAsync(UserId delegatorId, CancellationToken ct = default)
+        => delegations.GetByDelegatorAsync(delegatorId, ct);
+
+    public Task<IReadOnlyList<Delegation>> GetIncomingAsync(UserId delegateeId, CancellationToken ct = default)
+        => delegations.GetByDelegateeAsync(delegateeId, ct);
+
     private async Task<Delegation> GetOrThrowAsync(DelegationId id, CancellationToken ct)
         => await delegations.GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"Delegation {id} not found.");

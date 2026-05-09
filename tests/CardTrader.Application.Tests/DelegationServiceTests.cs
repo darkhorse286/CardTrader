@@ -159,4 +159,36 @@ public class DelegationServiceTests
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.RevokeAsync(DelegationId.New(), UserId.New()));
     }
+
+    // ── GetOutgoingAsync ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetOutgoingAsync_ReturnsRepositoryResult()
+    {
+        var delegatorId = UserId.New();
+        var delegation = MakeDelegation(DelegationId.New(), delegatorId, UserId.New());
+        _delegations.GetByDelegatorAsync(delegatorId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<Delegation>>([delegation]));
+
+        var result = await _sut.GetOutgoingAsync(delegatorId);
+
+        Assert.Single(result);
+        Assert.Equal(delegation.Id, result[0].Id);
+    }
+
+    // ── GetIncomingAsync ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetIncomingAsync_ReturnsRepositoryResult()
+    {
+        var delegateeId = UserId.New();
+        var delegation = MakeDelegation(DelegationId.New(), UserId.New(), delegateeId);
+        _delegations.GetByDelegateeAsync(delegateeId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<Delegation>>([delegation]));
+
+        var result = await _sut.GetIncomingAsync(delegateeId);
+
+        Assert.Single(result);
+        Assert.Equal(delegation.Id, result[0].Id);
+    }
 }
