@@ -1,21 +1,51 @@
 using CardTrader.Domain.Entities;
 using CardTrader.Domain.ValueObjects;
+using CardTrader.Identity;
 using CardTrader.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace CardTrader.Web.Seeding;
 
 public static class DemoDataSeeder
 {
+    internal const string AdminEmail = "admin@cardtrader.local";
+    private const string AdminPassword = "Admin123!";
+
     public static async Task SeedAsync(IServiceProvider services)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var sp = scope.ServiceProvider;
 
+        await SeedAdminUserAsync(sp);
+
+        var db = sp.GetRequiredService<AppDbContext>();
         if (await db.Cards.AnyAsync()) return;
 
         db.Cards.AddRange(BuildCards());
         await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedAdminUserAsync(IServiceProvider sp)
+    {
+        var roleManager = sp.GetRequiredService<RoleManager<IdentityRole>>();
+        var userManager = sp.GetRequiredService<UserManager<CardTraderUser>>();
+
+        if (!await roleManager.RoleExistsAsync(CardTraderRoles.Admin))
+            await roleManager.CreateAsync(new IdentityRole(CardTraderRoles.Admin));
+
+        var admin = await userManager.FindByEmailAsync(AdminEmail);
+        if (admin is null)
+        {
+            admin = new CardTraderUser { UserName = AdminEmail, Email = AdminEmail };
+            var result = await userManager.CreateAsync(admin, AdminPassword);
+            if (!result.Succeeded)
+                throw new InvalidOperationException(
+                    $"Failed to create admin user: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+        }
+
+        if (!await userManager.IsInRoleAsync(admin, CardTraderRoles.Admin))
+            await userManager.AddToRoleAsync(admin, CardTraderRoles.Admin);
     }
 
     private static IEnumerable<Card> BuildCards() =>
