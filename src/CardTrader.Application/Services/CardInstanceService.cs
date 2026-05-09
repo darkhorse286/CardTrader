@@ -17,8 +17,9 @@ public sealed class CardInstanceService(
     public async Task<CardInstance> CreateAsync(
         CardInstanceId id, CardId cardId, UserId ownerId, int printNumber, CancellationToken ct = default)
     {
+        var card = await GetCardOrThrowAsync(cardId, ct);
         await GuardPrintNumberUniqueAsync(cardId, printNumber, ct);
-        var instance = CardInstance.Create(id, cardId, ownerId, printNumber);
+        var instance = CardInstance.Create(id, cardId, ownerId, printNumber, card.PrintRun);
         await instances.AddAsync(instance, ct);
         await dispatcher.DispatchAsync(instance.DomainEvents, ct);
         instance.ClearDomainEvents();
@@ -29,10 +30,11 @@ public sealed class CardInstanceService(
         CardInstanceId id, CardId cardId, UserId ownerId, int printNumber, RosterId rosterId,
         CancellationToken ct = default)
     {
+        var card = await GetCardOrThrowAsync(cardId, ct);
         await GuardPrintNumberUniqueAsync(cardId, printNumber, ct);
-        await ValidateRosterSlotAsync(cardId, rosterId, ct);
+        await ValidateRosterSlotAsync(card, rosterId, ct);
 
-        var instance = CardInstance.Create(id, cardId, ownerId, printNumber);
+        var instance = CardInstance.Create(id, cardId, ownerId, printNumber, card.PrintRun);
         instance.AddToRoster(rosterId);
         await instances.AddAsync(instance, ct);
         await dispatcher.DispatchAsync(instance.DomainEvents, ct);
@@ -66,6 +68,10 @@ public sealed class CardInstanceService(
         instance.ClearDomainEvents();
     }
 
+    private async Task<Card> GetCardOrThrowAsync(CardId cardId, CancellationToken ct)
+        => await cards.GetByIdAsync(cardId, ct)
+           ?? throw new KeyNotFoundException($"Card {cardId} not found.");
+
     private async Task GuardPrintNumberUniqueAsync(CardId cardId, int printNumber, CancellationToken ct)
     {
         if (await instances.ExistsByCardAndPrintNumberAsync(cardId, printNumber, ct))
@@ -73,7 +79,7 @@ public sealed class CardInstanceService(
                 $"Print #{printNumber} for card {cardId} already exists.");
     }
 
-    private async Task ValidateRosterSlotAsync(CardId cardId, RosterId rosterId, CancellationToken ct)
+    private async Task ValidateRosterSlotAsync(Card? card, RosterId rosterId, CancellationToken ct)
     {
         var existing = await instances.GetByRosterAsync(rosterId, ct);
 
@@ -81,7 +87,6 @@ public sealed class CardInstanceService(
             throw new InvalidOperationException(
                 $"Roster is full — maximum {RosterConstraints.MaxSize} players allowed.");
 
-        var card = await cards.GetByIdAsync(cardId, ct);
         if (card?.PlayerPosition is not { } position)
             return;
 

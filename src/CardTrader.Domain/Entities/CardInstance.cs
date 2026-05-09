@@ -14,9 +14,10 @@ public sealed class CardInstance : Entity<CardInstanceId>
 
     public RosterId? RosterId { get; private set; }
 
-    public static CardInstance Create(CardInstanceId id, CardId cardId, UserId ownerId, int printNumber)
+    public static CardInstance Create(CardInstanceId id, CardId cardId, UserId ownerId, int printNumber, int printRun)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(printNumber, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(printNumber, printRun);
 
         var instance = new CardInstance { Id = id, CardId = cardId, OwnerId = ownerId, PrintNumber = printNumber };
         instance.Raise(new CardInstanceCreated(id, cardId, ownerId));
