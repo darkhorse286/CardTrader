@@ -227,6 +227,7 @@ else
                                 <input class="form-control"
                                        type="number"
                                        min="1"
+                                       max="@(SelectedCard?.PrintRun)"
                                        placeholder="e.g. 42"
                                        @bind="_mintPrintNumber"
                                        @bind:event="oninput" />
@@ -264,7 +265,15 @@ else
 
     private string _mintCardId = "";
     private int? _mintPrintNumber;
-    private bool CanMint => !string.IsNullOrEmpty(_mintCardId) && _mintPrintNumber is >= 1;
+
+    private Card? SelectedCard =>
+        string.IsNullOrEmpty(_mintCardId) ? null
+        : _availableCards.FirstOrDefault(c => c.Id.Value == Guid.Parse(_mintCardId));
+
+    private bool CanMint =>
+        SelectedCard is { } card &&
+        _mintPrintNumber is >= 1 &&
+        _mintPrintNumber <= card.PrintRun;
 
     private int PositionCount(string position) =>
         _instances.Count(i => _cardLookup.GetValueOrDefault(i.CardId)?.PlayerPosition == position);
@@ -314,6 +323,8 @@ else
             await LoadPlayersAndCardsAsync();
         }
         catch (InvalidOperationException ex) { _error = ex.Message; }
+        catch (ArgumentOutOfRangeException) { _error = "Print number is outside the valid range for this card."; }
+        catch (KeyNotFoundException) { _error = "Card not found. Please refresh and try again."; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }

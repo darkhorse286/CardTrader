@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
@@ -22,6 +26,7 @@
     <ProjectReference Include="..\..\src\CardTrader.Application\CardTrader.Application.csproj" />
     <ProjectReference Include="..\..\src\CardTrader.Authorization\CardTrader.Authorization.csproj" />
     <ProjectReference Include="..\..\src\CardTrader.Domain\CardTrader.Domain.csproj" />
+    <ProjectReference Include="..\..\src\CardTrader.Identity\CardTrader.Identity.csproj" />
     <ProjectReference Include="..\..\src\CardTrader.Infrastructure\CardTrader.Infrastructure.csproj" />
   </ItemGroup>
 

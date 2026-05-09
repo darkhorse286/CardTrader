@@ -234,6 +234,7 @@
             await LoadProposalsAsync();
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to accept this trade."; }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }
@@ -248,6 +249,7 @@
             await LoadProposalsAsync();
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to decline this trade."; }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }
@@ -262,6 +264,7 @@
             await LoadProposalsAsync();
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to cancel this trade."; }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }

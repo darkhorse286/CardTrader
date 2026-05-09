@@ -116,6 +116,80 @@ public class DelegationRepositoryTests
     }
 
     [Fact]
+    public async Task GetByDelegatorAsync_IncludesDelegationsWithFutureExpiry()
+    {
+        var dbName = nameof(GetByDelegatorAsync_IncludesDelegationsWithFutureExpiry);
+        var delegatorId = UserId.New();
+        var d = Delegation.Create(DelegationId.New(), delegatorId, UserId.New());
+        d.ActivateWithExpiry(DateTimeOffset.UtcNow.AddDays(30));
+
+        await using (var ctx = CreateContext(dbName))
+            await new DelegationRepository(ctx).AddAsync(d);
+
+        await using var readCtx = CreateContext(dbName);
+        var result = await new DelegationRepository(readCtx).GetByDelegatorAsync(delegatorId);
+
+        Assert.Single(result);
+        Assert.NotNull(result[0].ExpiresAt);
+    }
+
+    [Fact]
+    public async Task GetByDelegatorAsync_ExcludesExpiredActiveDelegations()
+    {
+        var dbName = nameof(GetByDelegatorAsync_ExcludesExpiredActiveDelegations);
+        var delegatorId = UserId.New();
+
+        var active = Delegation.Create(DelegationId.New(), delegatorId, UserId.New());
+        active.Activate();
+
+        var expiring = Delegation.Create(DelegationId.New(), delegatorId, UserId.New());
+        expiring.ActivateWithExpiry(DateTimeOffset.UtcNow.AddMilliseconds(80));
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var repo = new DelegationRepository(ctx);
+            await repo.AddAsync(active);
+            await repo.AddAsync(expiring);
+        }
+
+        await Task.Delay(120);
+
+        await using var readCtx = CreateContext(dbName);
+        var result = await new DelegationRepository(readCtx).GetByDelegatorAsync(delegatorId);
+
+        Assert.Single(result);
+        Assert.Null(result[0].ExpiresAt);
+    }
+
+    [Fact]
+    public async Task GetByDelegateeAsync_ExcludesExpiredActiveDelegations()
+    {
+        var dbName = nameof(GetByDelegateeAsync_ExcludesExpiredActiveDelegations);
+        var delegateeId = UserId.New();
+
+        var active = Delegation.Create(DelegationId.New(), UserId.New(), delegateeId);
+        active.Activate();
+
+        var expiring = Delegation.Create(DelegationId.New(), UserId.New(), delegateeId);
+        expiring.ActivateWithExpiry(DateTimeOffset.UtcNow.AddMilliseconds(80));
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var repo = new DelegationRepository(ctx);
+            await repo.AddAsync(active);
+            await repo.AddAsync(expiring);
+        }
+
+        await Task.Delay(120);
+
+        await using var readCtx = CreateContext(dbName);
+        var result = await new DelegationRepository(readCtx).GetByDelegateeAsync(delegateeId);
+
+        Assert.Single(result);
+        Assert.Null(result[0].ExpiresAt);
+    }
+
+    [Fact]
     public async Task GetByDelegatorAsync_ReturnsOnlyDelegatorsDelegations()
     {
         var dbName = nameof(GetByDelegatorAsync_ReturnsOnlyDelegatorsDelegations);
