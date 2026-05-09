@@ -113,4 +113,37 @@ public class TradeProposalRepositoryTests
         Assert.NotNull(stored);
         Assert.Equal(TradeProposalStatus.Accepted, stored.Status);
     }
+
+    [Fact]
+    public async Task GetAllPendingAsync_ReturnsOnlyPendingProposals()
+    {
+        var dbName = nameof(GetAllPendingAsync_ReturnsOnlyPendingProposals);
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var repo = new TradeProposalRepository(ctx);
+            var (id1, i1, r1) = MakeIds();
+            var (id2, i2, r2) = MakeIds();
+            var (id3, i3, r3) = MakeIds();
+
+            var pending = TradeProposal.Create(id1, i1, r1);
+            var accepted = TradeProposal.Create(id2, i2, r2);
+            var cancelled = TradeProposal.Create(id3, i3, r3);
+
+            await repo.AddAsync(pending);
+            await repo.AddAsync(accepted);
+            await repo.AddAsync(cancelled);
+
+            accepted.Accept();
+            cancelled.Cancel();
+            await repo.UpdateAsync(accepted);
+            await repo.UpdateAsync(cancelled);
+        }
+
+        await using var readCtx = CreateContext(dbName);
+        var result = await new TradeProposalRepository(readCtx).GetAllPendingAsync();
+
+        Assert.Single(result);
+        Assert.Equal(TradeProposalStatus.Pending, result[0].Status);
+    }
 }

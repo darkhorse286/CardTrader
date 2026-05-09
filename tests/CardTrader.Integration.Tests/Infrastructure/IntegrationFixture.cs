@@ -1,4 +1,6 @@
 using CardTrader.Application;
+using CardTrader.Application.Abstractions;
+using CardTrader.Domain.ValueObjects;
 using CardTrader.Infrastructure;
 using CardTrader.Infrastructure.Persistence;
 using DotNet.Testcontainers.Builders;
@@ -11,6 +13,13 @@ using OpenFga.Sdk.Client.Model;
 using Testcontainers.PostgreSql;
 
 namespace CardTrader.Integration.Tests.Infrastructure;
+
+// Admin is not exercised in integration tests — always returns false.
+file sealed class NullAdminService : IAdminService
+{
+    public Task<bool> IsAdminAsync(UserId userId, CancellationToken ct = default) =>
+        Task.FromResult(false);
+}
 
 public sealed class IntegrationFixture : IAsyncLifetime
 {
@@ -63,6 +72,7 @@ public sealed class IntegrationFixture : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddApplication();
         services.AddInfrastructure(configuration);
+        services.AddScoped<IAdminService, NullAdminService>();
         _serviceProvider = services.BuildServiceProvider();
 
         // Apply EF migrations against the live Postgres container

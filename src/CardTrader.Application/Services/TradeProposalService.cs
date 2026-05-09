@@ -10,10 +10,18 @@ namespace CardTrader.Application.Services;
 public sealed class TradeProposalService(
     ITradeProposalRepository proposals,
     IAuthorizationService authz,
+    IAdminService admin,
     IDomainEventDispatcher dispatcher)
 {
     public Task<IReadOnlyList<TradeProposal>> GetInvolvingUserAsync(UserId userId, CancellationToken ct = default)
         => proposals.GetInvolvingUserAsync(userId, ct);
+
+    public async Task<IReadOnlyList<TradeProposal>> GetAllPendingAsync(UserId requestingUserId, CancellationToken ct = default)
+    {
+        if (!await admin.IsAdminAsync(requestingUserId, ct))
+            throw new UnauthorizedAccessException("Only admins can view all pending trades.");
+        return await proposals.GetAllPendingAsync(ct);
+    }
 
     public async Task<TradeProposal> CreateAsync(
         TradeProposalId id, UserId initiatorId, UserId recipientId, CancellationToken ct = default)
@@ -51,7 +59,9 @@ public sealed class TradeProposalService(
         TradeProposalId id, UserId requestingUserId, CancellationToken ct = default)
     {
         var proposal = await GetOrThrowAsync(id, ct);
-        await CheckOrThrowAsync(requestingUserId, FgaRelations.CanCancel, id, ct);
+        var isAdmin = await admin.IsAdminAsync(requestingUserId, ct);
+        if (!isAdmin)
+            await CheckOrThrowAsync(requestingUserId, FgaRelations.CanCancel, id, ct);
         proposal.Cancel();
         await proposals.UpdateAsync(proposal, ct);
         await dispatcher.DispatchAsync(proposal.DomainEvents, ct);

@@ -26,6 +26,7 @@ public static class IdentityServiceExtensions
 
         services.AddScoped<ICurrentUser, AspNetCoreCurrentUser>();
         services.AddScoped<IUserLookup, AspNetCoreUserLookup>();
+        services.AddScoped<IAdminService, IdentityAdminService>();
 
         // Relaxed password rules for dev/PoC — tighten before any real deployment.
         return services
