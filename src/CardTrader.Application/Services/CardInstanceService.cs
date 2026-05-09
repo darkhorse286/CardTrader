@@ -1,6 +1,7 @@
 using CardTrader.Application.Abstractions;
 using CardTrader.Authorization.Relations;
 using CardTrader.Authorization.Types;
+using CardTrader.Domain;
 using CardTrader.Domain.Entities;
 using CardTrader.Domain.Repositories;
 using CardTrader.Domain.ValueObjects;
@@ -9,6 +10,7 @@ namespace CardTrader.Application.Services;
 
 public sealed class CardInstanceService(
     ICardInstanceRepository instances,
+    ICardRepository cards,
     IAuthorizationService authz,
     IDomainEventDispatcher dispatcher)
 {
@@ -22,41 +24,72 @@ public sealed class CardInstanceService(
         return instance;
     }
 
-    public async Task<CardInstance> MintAndAddToCollectionAsync(
-        CardInstanceId id, CardId cardId, UserId ownerId, int printNumber, CollectionId collectionId, CancellationToken ct = default)
+    public async Task<CardInstance> MintAndAddToRosterAsync(
+        CardInstanceId id, CardId cardId, UserId ownerId, int printNumber, RosterId rosterId,
+        CancellationToken ct = default)
     {
+        await ValidateRosterSlotAsync(cardId, rosterId, ct);
+
         var instance = CardInstance.Create(id, cardId, ownerId, printNumber);
-        instance.AddToCollection(collectionId);
+        instance.AddToRoster(rosterId);
         await instances.AddAsync(instance, ct);
         await dispatcher.DispatchAsync(instance.DomainEvents, ct);
         instance.ClearDomainEvents();
         return instance;
     }
 
-    public Task<IReadOnlyList<CardInstance>> GetByCollectionAsync(
-        CollectionId collectionId, CancellationToken ct = default)
-        => instances.GetByCollectionAsync(collectionId, ct);
+    public Task<IReadOnlyList<CardInstance>> GetByRosterAsync(
+        RosterId rosterId, CancellationToken ct = default)
+        => instances.GetByRosterAsync(rosterId, ct);
 
-    public async Task AddToCollectionAsync(
-        CardInstanceId id, UserId requestingUserId, CollectionId collectionId, CancellationToken ct = default)
+    public async Task AddToRosterAsync(
+        CardInstanceId id, UserId requestingUserId, RosterId rosterId, CancellationToken ct = default)
     {
         var instance = await GetOrThrowAsync(id, ct);
         await CheckOrThrowAsync(requestingUserId, FgaRelations.CanManage, id, ct);
-        instance.AddToCollection(collectionId);
+        instance.AddToRoster(rosterId);
         await instances.UpdateAsync(instance, ct);
         await dispatcher.DispatchAsync(instance.DomainEvents, ct);
         instance.ClearDomainEvents();
     }
 
-    public async Task RemoveFromCollectionAsync(
-        CardInstanceId id, UserId requestingUserId, CollectionId collectionId, CancellationToken ct = default)
+    public async Task RemoveFromRosterAsync(
+        CardInstanceId id, UserId requestingUserId, RosterId rosterId, CancellationToken ct = default)
     {
         var instance = await GetOrThrowAsync(id, ct);
         await CheckOrThrowAsync(requestingUserId, FgaRelations.CanManage, id, ct);
-        instance.RemoveFromCollection(collectionId);
+        instance.RemoveFromRoster(rosterId);
         await instances.UpdateAsync(instance, ct);
         await dispatcher.DispatchAsync(instance.DomainEvents, ct);
         instance.ClearDomainEvents();
+    }
+
+    private async Task ValidateRosterSlotAsync(CardId cardId, RosterId rosterId, CancellationToken ct)
+    {
+        var existing = await instances.GetByRosterAsync(rosterId, ct);
+
+        if (existing.Count >= RosterConstraints.MaxSize)
+            throw new InvalidOperationException(
+                $"Roster is full — maximum {RosterConstraints.MaxSize} players allowed.");
+
+        var card = await cards.GetByIdAsync(cardId, ct);
+        if (card?.PlayerPosition is not { } position)
+            return;
+
+        if (!RosterConstraints.PositionSlots.TryGetValue(position, out var maxSlots))
+            return;
+
+        int posCount = 0;
+        foreach (var inst in existing)
+        {
+            var instCard = await cards.GetByIdAsync(inst.CardId, ct);
+            if (instCard?.PlayerPosition == position)
+                posCount++;
+        }
+
+        if (posCount >= maxSlots)
+            throw new InvalidOperationException(
+                $"Roster already has {maxSlots} {position} player(s) — position slot is full.");
     }
 
     private async Task<CardInstance> GetOrThrowAsync(CardInstanceId id, CancellationToken ct)

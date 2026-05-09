@@ -21,7 +21,7 @@ internal static class AuthorizationModelBuilder
         [
             UserType(),
             CardInstanceType(),
-            CollectionType(),
+            RosterType(),
             TradeProposalType(),
             DelegationType(),
         ],
@@ -53,30 +53,30 @@ internal static class AuthorizationModelBuilder
         Type = FgaTypes.CardInstance,
         Relations = new Dictionary<string, Userset>
         {
-            [FgaRelations.Owner]      = Direct(),
-            [FgaRelations.Viewer]     = Direct(),
-            [FgaRelations.Collection] = Direct(),
-            [FgaRelations.CanManage]  = Computed(FgaRelations.Owner),
-            [FgaRelations.CanTrade]   = Computed(FgaRelations.Owner),
-            [FgaRelations.CanView]    = Union(
+            [FgaRelations.Owner]     = Direct(),
+            [FgaRelations.Viewer]    = Direct(),
+            [FgaRelations.Roster]    = Direct(),
+            [FgaRelations.CanManage] = Computed(FgaRelations.Owner),
+            [FgaRelations.CanTrade]  = Computed(FgaRelations.Owner),
+            [FgaRelations.CanView]   = Union(
                 Computed(FgaRelations.Owner),
                 Computed(FgaRelations.Viewer),
-                TupleToUs(FgaRelations.Collection, FgaRelations.CanView)),
+                TupleToUs(FgaRelations.Roster, FgaRelations.CanView)),
         },
         Metadata = new Metadata
         {
             Relations = new Dictionary<string, RelationMetadata>
             {
-                [FgaRelations.Owner]      = Types(User()),
-                [FgaRelations.Viewer]     = Types(User()),
-                [FgaRelations.Collection] = Types(TypeRef(FgaTypes.Collection)),
+                [FgaRelations.Owner]  = Types(User()),
+                [FgaRelations.Viewer] = Types(User()),
+                [FgaRelations.Roster] = Types(TypeRef(FgaTypes.Roster)),
             },
         },
     };
 
-    private static TypeDefinition CollectionType() => new()
+    private static TypeDefinition RosterType() => new()
     {
-        Type = FgaTypes.Collection,
+        Type = FgaTypes.Roster,
         Relations = new Dictionary<string, Userset>
         {
             [FgaRelations.Owner]     = Direct(),
@@ -142,7 +142,6 @@ internal static class AuthorizationModelBuilder
             {
                 [FgaRelations.Delegator]       = Types(User()),
                 [FgaRelations.Delegatee]       = Types(User()),
-                // [user] for indefinite + [user with not_expired] for time-bound
                 [FgaRelations.ActiveDelegator] = Types(User(), UserWithCondition(NotExpired)),
             },
         },

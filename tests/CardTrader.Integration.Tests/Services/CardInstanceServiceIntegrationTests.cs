@@ -16,8 +16,8 @@ public class CardInstanceServiceIntegrationTests(IntegrationFixture fixture)
     private CardInstanceService Service(IServiceScope scope) =>
         scope.ServiceProvider.GetRequiredService<CardInstanceService>();
 
-    private CollectionService CollectionSvc(IServiceScope scope) =>
-        scope.ServiceProvider.GetRequiredService<CollectionService>();
+    private RosterService RosterSvc(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<RosterService>();
 
     private IAuthorizationService Authz(IServiceScope scope) =>
         scope.ServiceProvider.GetRequiredService<IAuthorizationService>();
@@ -83,34 +83,34 @@ public class CardInstanceServiceIntegrationTests(IntegrationFixture fixture)
         Assert.False(await CanView(scope, stranger, id));
     }
 
-    // ── AddToCollectionAsync ──────────────────────────────────────────────────
+    // ── AddToRosterAsync ──────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddToCollection_CollectionViewerCanViewInstance()
+    public async Task AddToRoster_RosterViewerCanViewInstance()
     {
-        // Once a card instance is linked to a collection, anyone with can_view
-        // on the collection also gains can_view on the instance (tuple-to-userset).
+        // Once a card instance is linked to a roster, anyone with can_view
+        // on the roster also gains can_view on the instance (tuple-to-userset).
         using var scope = fixture.CreateScope();
         var cardId = await SeedCardAsync(scope);
         var instanceId = CardInstanceId.New();
-        var collectionId = CollectionId.New();
+        var rosterId = RosterId.New();
         var instanceOwner = UserId.New();
-        var collectionOwner = UserId.New();
+        var rosterOwner = UserId.New();
         var viewer = UserId.New();
 
-        await CollectionSvc(scope).CreateAsync(collectionId, "Test", collectionOwner);
-        await CollectionSvc(scope).ShareWithUserAsync(collectionId, collectionOwner, viewer);
+        await RosterSvc(scope).CreateAsync(rosterId, "Test", rosterOwner);
+        await RosterSvc(scope).ShareWithUserAsync(rosterId, rosterOwner, viewer);
         await Service(scope).CreateAsync(instanceId, cardId, instanceOwner, printNumber: 1);
 
         Assert.False(await CanView(scope, viewer, instanceId)); // not linked yet
 
-        await Service(scope).AddToCollectionAsync(instanceId, instanceOwner, collectionId);
+        await Service(scope).AddToRosterAsync(instanceId, instanceOwner, rosterId);
 
         Assert.True(await CanView(scope, viewer, instanceId));
     }
 
     [Fact]
-    public async Task AddToCollection_ByStranger_Throws()
+    public async Task AddToRoster_ByStranger_Throws()
     {
         using var scope = fixture.CreateScope();
         var cardId = await SeedCardAsync(scope);
@@ -120,35 +120,35 @@ public class CardInstanceServiceIntegrationTests(IntegrationFixture fixture)
         await Service(scope).CreateAsync(instanceId, cardId, UserId.New(), printNumber: 1);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => Service(scope).AddToCollectionAsync(instanceId, stranger, CollectionId.New()));
+            () => Service(scope).AddToRosterAsync(instanceId, stranger, RosterId.New()));
     }
 
-    // ── RemoveFromCollectionAsync ─────────────────────────────────────────────
+    // ── RemoveFromRosterAsync ─────────────────────────────────────────────────
 
     [Fact]
-    public async Task RemoveFromCollection_RevokesCollectionViewerAccess()
+    public async Task RemoveFromRoster_RevokesRosterViewerAccess()
     {
         using var scope = fixture.CreateScope();
         var cardId = await SeedCardAsync(scope);
         var instanceId = CardInstanceId.New();
-        var collectionId = CollectionId.New();
+        var rosterId = RosterId.New();
         var instanceOwner = UserId.New();
-        var collectionOwner = UserId.New();
+        var rosterOwner = UserId.New();
         var viewer = UserId.New();
 
-        await CollectionSvc(scope).CreateAsync(collectionId, "Test", collectionOwner);
-        await CollectionSvc(scope).ShareWithUserAsync(collectionId, collectionOwner, viewer);
+        await RosterSvc(scope).CreateAsync(rosterId, "Test", rosterOwner);
+        await RosterSvc(scope).ShareWithUserAsync(rosterId, rosterOwner, viewer);
         await Service(scope).CreateAsync(instanceId, cardId, instanceOwner, printNumber: 1);
-        await Service(scope).AddToCollectionAsync(instanceId, instanceOwner, collectionId);
+        await Service(scope).AddToRosterAsync(instanceId, instanceOwner, rosterId);
         Assert.True(await CanView(scope, viewer, instanceId)); // confirm linked
 
-        await Service(scope).RemoveFromCollectionAsync(instanceId, instanceOwner, collectionId);
+        await Service(scope).RemoveFromRosterAsync(instanceId, instanceOwner, rosterId);
 
         Assert.False(await CanView(scope, viewer, instanceId));
     }
 
     [Fact]
-    public async Task RemoveFromCollection_ByStranger_Throws()
+    public async Task RemoveFromRoster_ByStranger_Throws()
     {
         using var scope = fixture.CreateScope();
         var cardId = await SeedCardAsync(scope);
@@ -158,6 +158,6 @@ public class CardInstanceServiceIntegrationTests(IntegrationFixture fixture)
         await Service(scope).CreateAsync(instanceId, cardId, UserId.New(), printNumber: 1);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => Service(scope).RemoveFromCollectionAsync(instanceId, stranger, CollectionId.New()));
+            () => Service(scope).RemoveFromRosterAsync(instanceId, stranger, RosterId.New()));
     }
 }

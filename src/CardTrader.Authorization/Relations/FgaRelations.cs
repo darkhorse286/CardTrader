@@ -9,7 +9,7 @@ public static class FgaRelations
     public const string CanManage = "can_manage";
 
     // card_instance
-    public const string Collection = "collection";
+    public const string Roster = "roster";
     public const string CanTrade = "can_trade";
 
     // trade_proposal

@@ -32,10 +32,10 @@ public sealed class StronglyTypedIdTests
     }
 
     [Fact]
-    public void CollectionId_SameGuid_AreEqual()
+    public void RosterId_SameGuid_AreEqual()
     {
         var guid = Guid.NewGuid();
-        Assert.Equal(new CollectionId(guid), new CollectionId(guid));
+        Assert.Equal(new RosterId(guid), new RosterId(guid));
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class StronglyTypedIdTests
     [Fact] public void UserId_New_IsUnique()         => Assert.NotEqual(UserId.New(), UserId.New());
     [Fact] public void CardId_New_IsUnique()         => Assert.NotEqual(CardId.New(), CardId.New());
     [Fact] public void CardInstanceId_New_IsUnique() => Assert.NotEqual(CardInstanceId.New(), CardInstanceId.New());
-    [Fact] public void CollectionId_New_IsUnique()   => Assert.NotEqual(CollectionId.New(), CollectionId.New());
+    [Fact] public void RosterId_New_IsUnique()        => Assert.NotEqual(RosterId.New(), RosterId.New());
     [Fact] public void TradeProposalId_New_IsUnique() => Assert.NotEqual(TradeProposalId.New(), TradeProposalId.New());
     [Fact] public void DelegationId_New_IsUnique()   => Assert.NotEqual(DelegationId.New(), DelegationId.New());
 

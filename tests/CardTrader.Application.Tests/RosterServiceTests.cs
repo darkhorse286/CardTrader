@@ -8,23 +8,23 @@ using NSubstitute;
 
 namespace CardTrader.Application.Tests;
 
-public class CollectionServiceTests
+public class RosterServiceTests
 {
-    private readonly ICollectionRepository _collections = Substitute.For<ICollectionRepository>();
+    private readonly IRosterRepository _rosters = Substitute.For<IRosterRepository>();
     private readonly IAuthorizationService _authz = Substitute.For<IAuthorizationService>();
     private readonly IDomainEventDispatcher _dispatcher = Substitute.For<IDomainEventDispatcher>();
-    private readonly CollectionService _sut;
+    private readonly RosterService _sut;
 
-    public CollectionServiceTests()
+    public RosterServiceTests()
     {
-        _sut = new CollectionService(_collections, _authz, _dispatcher);
+        _sut = new RosterService(_rosters, _authz, _dispatcher);
     }
 
-    private static Collection MakeCollection(CollectionId id, UserId owner)
+    private static Roster MakeRoster(RosterId id, UserId owner)
     {
-        var c = Collection.Create(id, "Test Collection", owner);
-        c.ClearDomainEvents();
-        return c;
+        var r = Roster.Create(id, "Test Roster", owner);
+        r.ClearDomainEvents();
+        return r;
     }
 
     private void AllowManage() =>
@@ -38,12 +38,12 @@ public class CollectionServiceTests
     [Fact]
     public async Task CreateAsync_PersistsAndDispatchesEvents()
     {
-        var id = CollectionId.New();
+        var id = RosterId.New();
         var owner = UserId.New();
 
-        var result = await _sut.CreateAsync(id, "My Deck", owner);
+        var result = await _sut.CreateAsync(id, "My Lineup", owner);
 
-        await _collections.Received().AddAsync(Arg.Is<Collection>(c => c.Id == id), Arg.Any<CancellationToken>());
+        await _rosters.Received().AddAsync(Arg.Is<Roster>(r => r.Id == id), Arg.Any<CancellationToken>());
         await _dispatcher.Received().DispatchAsync(Arg.Any<IReadOnlyList<IDomainEvent>>(), Arg.Any<CancellationToken>());
         Assert.Equal(id, result.Id);
     }
@@ -51,7 +51,7 @@ public class CollectionServiceTests
     [Fact]
     public async Task CreateAsync_ClearsEventsAfterDispatch()
     {
-        var result = await _sut.CreateAsync(CollectionId.New(), "My Deck", UserId.New());
+        var result = await _sut.CreateAsync(RosterId.New(), "My Lineup", UserId.New());
 
         Assert.Empty(result.DomainEvents);
     }
@@ -61,9 +61,9 @@ public class CollectionServiceTests
     [Fact]
     public async Task ShareWithUserAsync_WhenAuthorized_DispatchesEvent()
     {
-        var id = CollectionId.New();
+        var id = RosterId.New();
         var owner = UserId.New();
-        _collections.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeCollection(id, owner));
+        _rosters.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeRoster(id, owner));
         AllowManage();
 
         await _sut.ShareWithUserAsync(id, owner, UserId.New());
@@ -74,8 +74,8 @@ public class CollectionServiceTests
     [Fact]
     public async Task ShareWithUserAsync_WhenUnauthorized_Throws()
     {
-        var id = CollectionId.New();
-        _collections.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeCollection(id, UserId.New()));
+        var id = RosterId.New();
+        _rosters.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeRoster(id, UserId.New()));
         DenyManage();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
@@ -85,10 +85,10 @@ public class CollectionServiceTests
     [Fact]
     public async Task ShareWithUserAsync_WhenNotFound_Throws()
     {
-        _collections.GetByIdAsync(Arg.Any<CollectionId>(), Arg.Any<CancellationToken>()).Returns((Collection?)null);
+        _rosters.GetByIdAsync(Arg.Any<RosterId>(), Arg.Any<CancellationToken>()).Returns((Roster?)null);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _sut.ShareWithUserAsync(CollectionId.New(), UserId.New(), UserId.New()));
+            () => _sut.ShareWithUserAsync(RosterId.New(), UserId.New(), UserId.New()));
     }
 
     // ── UnshareAsync ──────────────────────────────────────────────────────────
@@ -96,9 +96,9 @@ public class CollectionServiceTests
     [Fact]
     public async Task UnshareAsync_WhenAuthorized_DispatchesEvent()
     {
-        var id = CollectionId.New();
+        var id = RosterId.New();
         var owner = UserId.New();
-        _collections.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeCollection(id, owner));
+        _rosters.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeRoster(id, owner));
         AllowManage();
 
         await _sut.UnshareAsync(id, owner, UserId.New());
@@ -109,8 +109,8 @@ public class CollectionServiceTests
     [Fact]
     public async Task UnshareAsync_WhenUnauthorized_Throws()
     {
-        var id = CollectionId.New();
-        _collections.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeCollection(id, UserId.New()));
+        var id = RosterId.New();
+        _rosters.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeRoster(id, UserId.New()));
         DenyManage();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
@@ -122,9 +122,9 @@ public class CollectionServiceTests
     [Fact]
     public async Task MakePublicAsync_WhenAuthorized_DispatchesEvent()
     {
-        var id = CollectionId.New();
+        var id = RosterId.New();
         var owner = UserId.New();
-        _collections.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeCollection(id, owner));
+        _rosters.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeRoster(id, owner));
         AllowManage();
 
         await _sut.MakePublicAsync(id, owner);
@@ -135,8 +135,8 @@ public class CollectionServiceTests
     [Fact]
     public async Task MakePublicAsync_WhenUnauthorized_Throws()
     {
-        var id = CollectionId.New();
-        _collections.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeCollection(id, UserId.New()));
+        var id = RosterId.New();
+        _rosters.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeRoster(id, UserId.New()));
         DenyManage();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
@@ -148,9 +148,9 @@ public class CollectionServiceTests
     [Fact]
     public async Task MakePrivateAsync_WhenAuthorized_DispatchesEvent()
     {
-        var id = CollectionId.New();
+        var id = RosterId.New();
         var owner = UserId.New();
-        _collections.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeCollection(id, owner));
+        _rosters.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeRoster(id, owner));
         AllowManage();
 
         await _sut.MakePrivateAsync(id, owner);
@@ -161,8 +161,8 @@ public class CollectionServiceTests
     [Fact]
     public async Task MakePrivateAsync_WhenUnauthorized_Throws()
     {
-        var id = CollectionId.New();
-        _collections.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeCollection(id, UserId.New()));
+        var id = RosterId.New();
+        _rosters.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeRoster(id, UserId.New()));
         DenyManage();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
@@ -174,9 +174,9 @@ public class CollectionServiceTests
     [Fact]
     public async Task GetByIdAsync_DelegatesToRepository()
     {
-        var id = CollectionId.New();
-        var expected = MakeCollection(id, UserId.New());
-        _collections.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(expected);
+        var id = RosterId.New();
+        var expected = MakeRoster(id, UserId.New());
+        _rosters.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(expected);
 
         var result = await _sut.GetByIdAsync(id);
 
@@ -186,9 +186,9 @@ public class CollectionServiceTests
     [Fact]
     public async Task GetByIdAsync_ReturnsNull_WhenNotFound()
     {
-        _collections.GetByIdAsync(Arg.Any<CollectionId>(), Arg.Any<CancellationToken>()).Returns((Collection?)null);
+        _rosters.GetByIdAsync(Arg.Any<RosterId>(), Arg.Any<CancellationToken>()).Returns((Roster?)null);
 
-        var result = await _sut.GetByIdAsync(CollectionId.New());
+        var result = await _sut.GetByIdAsync(RosterId.New());
 
         Assert.Null(result);
     }
@@ -199,8 +199,8 @@ public class CollectionServiceTests
     public async Task GetOwnedAsync_DelegatesToRepository()
     {
         var owner = UserId.New();
-        var expected = new List<Collection> { MakeCollection(CollectionId.New(), owner) };
-        _collections.GetAllByOwnerAsync(owner, Arg.Any<CancellationToken>()).Returns(expected);
+        var expected = new List<Roster> { MakeRoster(RosterId.New(), owner) };
+        _rosters.GetAllByOwnerAsync(owner, Arg.Any<CancellationToken>()).Returns(expected);
 
         var result = await _sut.GetOwnedAsync(owner);
 

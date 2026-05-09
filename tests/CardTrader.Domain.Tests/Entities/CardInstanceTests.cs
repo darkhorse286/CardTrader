@@ -9,7 +9,7 @@ public sealed class CardInstanceTests
     private static readonly CardInstanceId InstanceId = CardInstanceId.New();
     private static readonly CardId CardId = CardId.New();
     private static readonly UserId OwnerId = UserId.New();
-    private static readonly CollectionId CollectionId = CollectionId.New();
+    private static readonly RosterId RosterId = RosterId.New();
 
     // ── Create ───────────────────────────────────────────────────────────────
 
@@ -43,36 +43,36 @@ public sealed class CardInstanceTests
         => Assert.Throws<ArgumentOutOfRangeException>(
             () => CardInstance.Create(InstanceId, CardId, OwnerId, printNumber));
 
-    // ── AddToCollection ──────────────────────────────────────────────────────
+    // ── AddToRoster ──────────────────────────────────────────────────────────
 
     [Fact]
-    public void AddToCollection_RaisesCardInstanceAddedToCollection()
+    public void AddToRoster_RaisesCardInstanceAddedToRoster()
     {
         var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
         instance.ClearDomainEvents();
 
-        instance.AddToCollection(CollectionId);
+        instance.AddToRoster(RosterId);
 
         var evt = Assert.Single(instance.DomainEvents);
-        var added = Assert.IsType<CardInstanceAddedToCollection>(evt);
+        var added = Assert.IsType<CardInstanceAddedToRoster>(evt);
         Assert.Equal(InstanceId, added.Id);
-        Assert.Equal(CollectionId, added.CollectionId);
+        Assert.Equal(RosterId, added.RosterId);
     }
 
-    // ── RemoveFromCollection ─────────────────────────────────────────────────
+    // ── RemoveFromRoster ─────────────────────────────────────────────────────
 
     [Fact]
-    public void RemoveFromCollection_RaisesCardInstanceRemovedFromCollection()
+    public void RemoveFromRoster_RaisesCardInstanceRemovedFromRoster()
     {
         var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
         instance.ClearDomainEvents();
 
-        instance.RemoveFromCollection(CollectionId);
+        instance.RemoveFromRoster(RosterId);
 
         var evt = Assert.Single(instance.DomainEvents);
-        var removed = Assert.IsType<CardInstanceRemovedFromCollection>(evt);
+        var removed = Assert.IsType<CardInstanceRemovedFromRoster>(evt);
         Assert.Equal(InstanceId, removed.Id);
-        Assert.Equal(CollectionId, removed.CollectionId);
+        Assert.Equal(RosterId, removed.RosterId);
     }
 
     // ── Event accumulation ───────────────────────────────────────────────────
@@ -80,19 +80,19 @@ public sealed class CardInstanceTests
     [Fact]
     public void MultipleOperations_EventsAccumulateInOrder()
     {
-        var collA = CollectionId.New();
-        var collB = CollectionId.New();
+        var rosterA = RosterId.New();
+        var rosterB = RosterId.New();
         var instance = CardInstance.Create(InstanceId, CardId, OwnerId, printNumber: 1);
         instance.ClearDomainEvents();
 
-        instance.AddToCollection(collA);
-        instance.AddToCollection(collB);
-        instance.RemoveFromCollection(collA);
+        instance.AddToRoster(rosterA);
+        instance.AddToRoster(rosterB);
+        instance.RemoveFromRoster(rosterA);
 
         Assert.Equal(3, instance.DomainEvents.Count);
-        Assert.IsType<CardInstanceAddedToCollection>(instance.DomainEvents[0]);
-        Assert.IsType<CardInstanceAddedToCollection>(instance.DomainEvents[1]);
-        Assert.IsType<CardInstanceRemovedFromCollection>(instance.DomainEvents[2]);
+        Assert.IsType<CardInstanceAddedToRoster>(instance.DomainEvents[0]);
+        Assert.IsType<CardInstanceAddedToRoster>(instance.DomainEvents[1]);
+        Assert.IsType<CardInstanceRemovedFromRoster>(instance.DomainEvents[2]);
     }
 
     [Fact]

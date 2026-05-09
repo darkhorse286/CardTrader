@@ -1,34 +1,34 @@
-@page "/collections/{id:guid}"
+@page "/rosters/{id:guid}"
 @rendermode InteractiveServer
 @attribute [Authorize]
-@inject CollectionService CollectionSvc
+@inject RosterService RosterSvc
 @inject CardInstanceService CardInstanceSvc
 @inject CardService CardSvc
 @inject ICurrentUser CurrentUser
 @inject IUserLookup UserLookup
 @inject NavigationManager Nav
 
-<PageTitle>@(_collection?.Name ?? "Collection")</PageTitle>
+<PageTitle>@(_roster?.Name ?? "Roster")</PageTitle>
 
 @if (_loading)
 {
     <p class="text-muted">Loading…</p>
 }
-else if (_collection is null)
+else if (_roster is null)
 {
-    <p class="text-danger">Collection not found.</p>
-    <a href="/collections" class="btn btn-secondary btn-sm">Back to Collections</a>
+    <p class="text-danger">Roster not found.</p>
+    <a href="/rosters" class="btn btn-secondary btn-sm">Back to Rosters</a>
 }
 else
 {
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="/collections">Collections</a></li>
-            <li class="breadcrumb-item active">@_collection.Name</li>
+            <li class="breadcrumb-item"><a href="/rosters">Rosters</a></li>
+            <li class="breadcrumb-item active">@_roster.Name</li>
         </ol>
     </nav>
 
-    <h1 class="mb-4">@_collection.Name</h1>
+    <h1 class="mb-4">@_roster.Name</h1>
 
     @if (_error is not null)
     {
@@ -51,7 +51,7 @@ else
                 <div class="card-header">Visibility</div>
                 <div class="card-body">
                     <p class="card-text text-muted small">
-                        Public collections can be viewed by anyone. Private collections are
+                        Public rosters can be viewed by anyone. Private rosters are
                         visible only to you and the people you share them with.
                     </p>
                     <div class="d-flex gap-2">
@@ -67,8 +67,7 @@ else
                 <div class="card-header">Share with a user</div>
                 <div class="card-body">
                     <p class="card-text text-muted small">
-                        Enter the email address of the user you want to share this collection with.
-                        They will be able to view the collection and its card instances.
+                        Enter the email address of the user you want to share this roster with.
                     </p>
                     <div class="input-group mb-2">
                         <input class="form-control"
@@ -110,27 +109,53 @@ else
                 </div>
             </div>
         </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">Roster Slots (@_instances.Count / @RosterConstraints.MaxSize)</div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                            @foreach (var (pos, max) in RosterConstraints.PositionSlots)
+                            {
+                                var current = PositionCount(pos);
+                                <tr>
+                                    <td class="fw-semibold">@pos</td>
+                                    <td>@current / @max</td>
+                                    <td>
+                                        @for (int i = 0; i < max; i++)
+                                        {
+                                            <span class="me-1 @(i < current ? "text-success" : "text-secondary")">●</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="row g-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Card Instances</span>
+                    <span>Players</span>
                     <span class="badge bg-secondary">@_instances.Count</span>
                 </div>
                 <div class="card-body p-0">
                     @if (_instances.Count == 0)
                     {
-                        <p class="text-muted p-3 mb-0">No instances in this collection yet.</p>
+                        <p class="text-muted p-3 mb-0">No players on this roster yet.</p>
                     }
                     else
                     {
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Card</th>
                                     <th>Player</th>
+                                    <th>Position</th>
                                     <th>Set</th>
                                     <th>Print #</th>
                                     <th></th>
@@ -142,12 +167,21 @@ else
                                     var card = _cardLookup.GetValueOrDefault(inst.CardId);
                                     <tr>
                                         <td>@(card?.Name ?? "—")</td>
-                                        <td>@(card?.PlayerName ?? "—")</td>
+                                        <td>
+                                            @if (card?.PlayerPosition is { } pos)
+                                            {
+                                                <span class="badge bg-info text-dark">@pos</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
                                         <td>@(card?.SetName ?? "—")</td>
                                         <td>@inst.PrintNumber / @(card?.PrintRun.ToString() ?? "?")</td>
                                         <td class="text-end">
                                             <button class="btn btn-outline-danger btn-sm"
-                                                    @onclick="() => RemoveInstanceAsync(inst.Id)"
+                                                    @onclick="() => RemovePlayerAsync(inst.Id)"
                                                     disabled="@_saving">
                                                 Remove
                                             </button>
@@ -163,11 +197,15 @@ else
 
         <div class="col-12">
             <div class="card">
-                <div class="card-header">Mint New Instance</div>
+                <div class="card-header">Add Player (Mint Card)</div>
                 <div class="card-body">
                     @if (_availableCards.Count == 0)
                     {
                         <p class="text-muted mb-0">No cards in the catalog yet.</p>
+                    }
+                    else if (_instances.Count >= RosterConstraints.MaxSize)
+                    {
+                        <p class="text-muted mb-0">Roster is full (10/10 players).</p>
                     }
                     else
                     {
@@ -176,9 +214,11 @@ else
                                 <label class="form-label small text-muted">Card</label>
                                 <select class="form-select" @bind="_mintCardId">
                                     <option value="">— select a card —</option>
-                                    @foreach (var c in _availableCards)
+                                    @foreach (var c in MintableCards)
                                     {
-                                        <option value="@c.Id.Value">@c.Name (@c.SetName, @c.Rarity)</option>
+                                        <option value="@c.Id.Value">
+                                            @c.Name (@c.PlayerPosition, @c.SetName, @c.Rarity)
+                                        </option>
                                     }
                                 </select>
                             </div>
@@ -209,42 +249,51 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
-    private Collection? _collection;
+    private Roster? _roster;
     private bool _loading = true;
     private string? _error;
     private string? _success;
     private bool _saving;
 
-    // Sharing
     private string _shareEmail = "";
     private string _unshareEmail = "";
 
-    // Instances
     private IReadOnlyList<CardInstance> _instances = [];
     private Dictionary<CardId, Card> _cardLookup = [];
     private IReadOnlyList<Card> _availableCards = [];
 
-    // Mint form
     private string _mintCardId = "";
     private int? _mintPrintNumber;
     private bool CanMint => !string.IsNullOrEmpty(_mintCardId) && _mintPrintNumber is >= 1;
+
+    private int PositionCount(string position) =>
+        _instances.Count(i => _cardLookup.GetValueOrDefault(i.CardId)?.PlayerPosition == position);
+
+    private IReadOnlyList<Card> MintableCards => _availableCards
+        .Where(c =>
+        {
+            if (c.PlayerPosition is null) return true;
+            if (!RosterConstraints.PositionSlots.TryGetValue(c.PlayerPosition, out var max)) return true;
+            return PositionCount(c.PlayerPosition) < max;
+        })
+        .ToList();
 
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
         try
         {
-            _collection = await CollectionSvc.GetByIdAsync(new CollectionId(Id));
-            if (_collection is not null)
-                await LoadInstancesAndCardsAsync();
+            _roster = await RosterSvc.GetByIdAsync(new RosterId(Id));
+            if (_roster is not null)
+                await LoadPlayersAndCardsAsync();
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }
     }
 
-    private async Task LoadInstancesAndCardsAsync()
+    private async Task LoadPlayersAndCardsAsync()
     {
-        _instances = await CardInstanceSvc.GetByCollectionAsync(new CollectionId(Id));
+        _instances = await CardInstanceSvc.GetByRosterAsync(new RosterId(Id));
         _availableCards = await CardSvc.GetAllAsync();
         _cardLookup = _availableCards.ToDictionary(c => c.Id);
     }
@@ -257,28 +306,29 @@ else
         {
             var userId = await CurrentUser.GetUserIdAsync();
             var cardId = new CardId(Guid.Parse(_mintCardId));
-            await CardInstanceSvc.MintAndAddToCollectionAsync(
-                CardInstanceId.New(), cardId, userId, _mintPrintNumber!.Value, new CollectionId(Id));
+            await CardInstanceSvc.MintAndAddToRosterAsync(
+                CardInstanceId.New(), cardId, userId, _mintPrintNumber!.Value, new RosterId(Id));
             _mintCardId = "";
             _mintPrintNumber = null;
-            _success = "Instance minted and added to collection.";
-            await LoadInstancesAndCardsAsync();
+            _success = "Player card minted and added to roster.";
+            await LoadPlayersAndCardsAsync();
         }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }
 
-    private async Task RemoveInstanceAsync(CardInstanceId instanceId)
+    private async Task RemovePlayerAsync(CardInstanceId instanceId)
     {
         _error = null; _success = null; _saving = true;
         try
         {
             var userId = await CurrentUser.GetUserIdAsync();
-            await CardInstanceSvc.RemoveFromCollectionAsync(instanceId, userId, new CollectionId(Id));
-            _success = "Instance removed from collection.";
-            await LoadInstancesAndCardsAsync();
+            await CardInstanceSvc.RemoveFromRosterAsync(instanceId, userId, new RosterId(Id));
+            _success = "Player removed from roster.";
+            await LoadPlayersAndCardsAsync();
         }
-        catch (UnauthorizedAccessException) { _error = "You don't have permission to remove this instance."; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to remove this player."; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }
@@ -289,10 +339,10 @@ else
         try
         {
             var userId = await CurrentUser.GetUserIdAsync();
-            await CollectionSvc.MakePublicAsync(new CollectionId(Id), userId);
-            _success = "Collection is now public — anyone can view it.";
+            await RosterSvc.MakePublicAsync(new RosterId(Id), userId);
+            _success = "Roster is now public — anyone can view it.";
         }
-        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this collection."; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this roster."; }
         catch (Exception ex) { _error = ex.Message; }
     }
 
@@ -302,10 +352,10 @@ else
         try
         {
             var userId = await CurrentUser.GetUserIdAsync();
-            await CollectionSvc.MakePrivateAsync(new CollectionId(Id), userId);
-            _success = "Collection is now private.";
+            await RosterSvc.MakePrivateAsync(new RosterId(Id), userId);
+            _success = "Roster is now private.";
         }
-        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this collection."; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this roster."; }
         catch (Exception ex) { _error = ex.Message; }
     }
 
@@ -322,13 +372,12 @@ else
         {
             var targetId = await UserLookup.FindByEmailAsync(_shareEmail.Trim());
             if (targetId is null) { _error = $"No account found for '{_shareEmail.Trim()}'."; return; }
-
             var userId = await CurrentUser.GetUserIdAsync();
-            await CollectionSvc.ShareWithUserAsync(new CollectionId(Id), userId, targetId.Value);
+            await RosterSvc.ShareWithUserAsync(new RosterId(Id), userId, targetId.Value);
             _shareEmail = "";
             _success = "Access granted.";
         }
-        catch (UnauthorizedAccessException) { _error = "You don't have permission to share this collection."; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to share this roster."; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }
@@ -346,13 +395,12 @@ else
         {
             var targetId = await UserLookup.FindByEmailAsync(_unshareEmail.Trim());
             if (targetId is null) { _error = $"No account found for '{_unshareEmail.Trim()}'."; return; }
-
             var userId = await CurrentUser.GetUserIdAsync();
-            await CollectionSvc.UnshareAsync(new CollectionId(Id), userId, targetId.Value);
+            await RosterSvc.UnshareAsync(new RosterId(Id), userId, targetId.Value);
             _unshareEmail = "";
             _success = "Access revoked.";
         }
-        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this collection."; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to change this roster."; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }

@@ -10,7 +10,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CardService>();
         services.AddScoped<CardInstanceService>();
         services.AddScoped<TradeProposalService>();
-        services.AddScoped<CollectionService>();
+        services.AddScoped<RosterService>();
         services.AddScoped<DelegationService>();
         return services;
     }

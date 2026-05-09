@@ -5,14 +5,14 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace CardTrader.Infrastructure.Persistence.Configurations;
 
-internal sealed class CollectionConfiguration : IEntityTypeConfiguration<Collection>
+internal sealed class RosterConfiguration : IEntityTypeConfiguration<Roster>
 {
-    public void Configure(EntityTypeBuilder<Collection> builder)
+    public void Configure(EntityTypeBuilder<Roster> builder)
     {
-        builder.ToTable("collections");
+        builder.ToTable("rosters");
         builder.HasKey(c => c.Id);
         builder.Property(c => c.Id)
-            .HasConversion(id => id.Value, guid => new CollectionId(guid));
+            .HasConversion(id => id.Value, guid => new RosterId(guid));
         builder.Property(c => c.Name).IsRequired().HasMaxLength(200);
         builder.Property(c => c.OwnerId)
             .HasConversion(id => id.Value, guid => new UserId(guid))
