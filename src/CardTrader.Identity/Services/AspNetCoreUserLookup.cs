@@ -11,4 +11,10 @@ internal sealed class AspNetCoreUserLookup(UserManager<CardTraderUser> userManag
         var user = await userManager.FindByEmailAsync(email);
         return user is null ? null : new UserId(Guid.Parse(user.Id));
     }
+
+    public async Task<string?> GetEmailByIdAsync(UserId userId, CancellationToken ct = default)
+    {
+        var user = await userManager.FindByIdAsync(userId.Value.ToString());
+        return user?.Email;
+    }
 }

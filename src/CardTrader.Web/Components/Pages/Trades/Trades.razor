@@ -1,0 +1,273 @@
+@page "/trades"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject TradeProposalService TradeSvc
+@inject ICurrentUser CurrentUser
+@inject IUserLookup UserLookup
+
+<PageTitle>Trades</PageTitle>
+
+<h1 class="mb-4">Trades</h1>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger alert-dismissible">
+        @_error
+        <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+    </div>
+}
+@if (_success is not null)
+{
+    <div class="alert alert-success alert-dismissible">
+        @_success
+        <button type="button" class="btn-close" @onclick="() => _success = null"></button>
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">Propose a Trade</div>
+            <div class="card-body">
+                <p class="card-text text-muted small">
+                    Enter the email address of the user you want to trade with.
+                    They will receive a pending proposal.
+                </p>
+                <div class="input-group" style="max-width: 420px">
+                    <input class="form-control"
+                           type="email"
+                           placeholder="recipient@example.com"
+                           @bind="_recipientEmail"
+                           @bind:event="oninput"
+                           @onkeydown="OnProposeKeyDown" />
+                    <button class="btn btn-primary"
+                            @onclick="ProposeAsync"
+                            disabled="@(string.IsNullOrWhiteSpace(_recipientEmail) || _saving)">
+                        Send Proposal
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Incoming</span>
+                <span class="badge bg-secondary">@_incoming.Count</span>
+            </div>
+            <div class="card-body p-0">
+                @if (_loading)
+                {
+                    <p class="text-muted p-3 mb-0">Loading…</p>
+                }
+                else if (_incoming.Count == 0)
+                {
+                    <p class="text-muted p-3 mb-0">No incoming proposals.</p>
+                }
+                else
+                {
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>From</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in _incoming)
+                            {
+                                <tr>
+                                    <td>@DisplayEmail(p.InitiatorId)</td>
+                                    <td><span class="badge @StatusClass(p.Status)">@p.Status</span></td>
+                                    <td class="text-end">
+                                        @if (p.Status == TradeProposalStatus.Pending)
+                                        {
+                                            <button class="btn btn-success btn-sm me-1"
+                                                    @onclick="() => AcceptAsync(p.Id)"
+                                                    disabled="@_saving">
+                                                Accept
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm"
+                                                    @onclick="() => DeclineAsync(p.Id)"
+                                                    disabled="@_saving">
+                                                Decline
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Outgoing</span>
+                <span class="badge bg-secondary">@_outgoing.Count</span>
+            </div>
+            <div class="card-body p-0">
+                @if (_loading)
+                {
+                    <p class="text-muted p-3 mb-0">Loading…</p>
+                }
+                else if (_outgoing.Count == 0)
+                {
+                    <p class="text-muted p-3 mb-0">No outgoing proposals.</p>
+                }
+                else
+                {
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>To</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in _outgoing)
+                            {
+                                <tr>
+                                    <td>@DisplayEmail(p.RecipientId)</td>
+                                    <td><span class="badge @StatusClass(p.Status)">@p.Status</span></td>
+                                    <td class="text-end">
+                                        @if (p.Status == TradeProposalStatus.Pending)
+                                        {
+                                            <button class="btn btn-outline-danger btn-sm"
+                                                    @onclick="() => CancelAsync(p.Id)"
+                                                    disabled="@_saving">
+                                                Cancel
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private string? _success;
+    private bool _saving;
+    private string _recipientEmail = "";
+
+    private List<TradeProposal> _incoming = [];
+    private List<TradeProposal> _outgoing = [];
+    private Dictionary<UserId, string> _userEmails = new();
+    private UserId _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _currentUserId = await CurrentUser.GetUserIdAsync();
+            await LoadProposalsAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task LoadProposalsAsync()
+    {
+        var all = await TradeSvc.GetInvolvingUserAsync(_currentUserId);
+        _incoming = all.Where(p => p.RecipientId == _currentUserId).ToList();
+        _outgoing = all.Where(p => p.InitiatorId == _currentUserId).ToList();
+
+        foreach (var id in all.SelectMany(p => new[] { p.InitiatorId, p.RecipientId }).Distinct())
+        {
+            if (!_userEmails.ContainsKey(id))
+                _userEmails[id] = await UserLookup.GetEmailByIdAsync(id) ?? id.Value.ToString()[..8] + "…";
+        }
+    }
+
+    private string DisplayEmail(UserId id) =>
+        _userEmails.TryGetValue(id, out var email) ? email : id.Value.ToString()[..8] + "…";
+
+    private static string StatusClass(TradeProposalStatus status) => status switch
+    {
+        TradeProposalStatus.Pending  => "bg-warning text-dark",
+        TradeProposalStatus.Accepted => "bg-success",
+        _                            => "bg-secondary",
+    };
+
+    private async Task ProposeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_recipientEmail)) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var recipientId = await UserLookup.FindByEmailAsync(_recipientEmail.Trim());
+            if (recipientId is null)
+            {
+                _error = $"No account found for '{_recipientEmail.Trim()}'.";
+                return;
+            }
+            await TradeSvc.CreateAsync(TradeProposalId.New(), _currentUserId, recipientId.Value);
+            _recipientEmail = "";
+            _success = "Trade proposal sent.";
+            await LoadProposalsAsync();
+        }
+        catch (ArgumentException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task AcceptAsync(TradeProposalId id)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            await TradeSvc.AcceptAsync(id, _currentUserId);
+            _success = "Trade accepted.";
+            await LoadProposalsAsync();
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to accept this trade."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task DeclineAsync(TradeProposalId id)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            await TradeSvc.CancelAsync(id, _currentUserId);
+            _success = "Trade proposal declined.";
+            await LoadProposalsAsync();
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to decline this trade."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task CancelAsync(TradeProposalId id)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            await TradeSvc.CancelAsync(id, _currentUserId);
+            _success = "Trade proposal cancelled.";
+            await LoadProposalsAsync();
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to cancel this trade."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task OnProposeKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ProposeAsync();
+    }
+}
