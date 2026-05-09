@@ -68,4 +68,26 @@ public class CardRepositoryTests
         Assert.Equal(card.Id, result.Id);
         Assert.Equal("Counterspell", result.Name);
     }
+
+    [Fact]
+    public async Task GetAllAsync_ReturnsAllCards_OrderedByName()
+    {
+        var dbName = nameof(GetAllAsync_ReturnsAllCards_OrderedByName);
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var repo = new CardRepository(ctx);
+            await repo.AddAsync(MakeCard("Zombie"));
+            await repo.AddAsync(MakeCard("Angel"));
+            await repo.AddAsync(MakeCard("Merfolk"));
+        }
+
+        await using var readCtx = CreateContext(dbName);
+        var results = await new CardRepository(readCtx).GetAllAsync();
+
+        Assert.Equal(3, results.Count);
+        Assert.Equal("Angel", results[0].Name);
+        Assert.Equal("Merfolk", results[1].Name);
+        Assert.Equal("Zombie", results[2].Name);
+    }
 }

@@ -10,6 +10,9 @@ internal sealed class CardRepository(AppDbContext db) : ICardRepository
     public Task<Card?> GetByIdAsync(CardId id, CancellationToken ct = default)
         => db.Cards.FirstOrDefaultAsync(c => c.Id == id, ct);
 
+    public async Task<IReadOnlyList<Card>> GetAllAsync(CancellationToken ct = default)
+        => await db.Cards.OrderBy(c => c.Name).ToListAsync(ct);
+
     public async Task AddAsync(Card card, CancellationToken ct = default)
     {
         await db.Cards.AddAsync(card, ct);

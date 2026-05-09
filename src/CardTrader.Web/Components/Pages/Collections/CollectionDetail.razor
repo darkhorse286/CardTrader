@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 @inject CollectionService CollectionSvc
+@inject CardInstanceService CardInstanceSvc
+@inject CardService CardSvc
 @inject ICurrentUser CurrentUser
 @inject IUserLookup UserLookup
 @inject NavigationManager Nav
@@ -43,7 +45,7 @@ else
         </div>
     }
 
-    <div class="row g-4">
+    <div class="row g-4 mb-4">
         <div class="col-md-6">
             <div class="card h-100">
                 <div class="card-header">Visibility</div>
@@ -109,6 +111,99 @@ else
             </div>
         </div>
     </div>
+
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Card Instances</span>
+                    <span class="badge bg-secondary">@_instances.Count</span>
+                </div>
+                <div class="card-body p-0">
+                    @if (_instances.Count == 0)
+                    {
+                        <p class="text-muted p-3 mb-0">No instances in this collection yet.</p>
+                    }
+                    else
+                    {
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Card</th>
+                                    <th>Player</th>
+                                    <th>Set</th>
+                                    <th>Print #</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var inst in _instances)
+                                {
+                                    var card = _cardLookup.GetValueOrDefault(inst.CardId);
+                                    <tr>
+                                        <td>@(card?.Name ?? "—")</td>
+                                        <td>@(card?.PlayerName ?? "—")</td>
+                                        <td>@(card?.SetName ?? "—")</td>
+                                        <td>@inst.PrintNumber / @(card?.PrintRun.ToString() ?? "?")</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-outline-danger btn-sm"
+                                                    @onclick="() => RemoveInstanceAsync(inst.Id)"
+                                                    disabled="@_saving">
+                                                Remove
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">Mint New Instance</div>
+                <div class="card-body">
+                    @if (_availableCards.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No cards in the catalog yet.</p>
+                    }
+                    else
+                    {
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-5">
+                                <label class="form-label small text-muted">Card</label>
+                                <select class="form-select" @bind="_mintCardId">
+                                    <option value="">— select a card —</option>
+                                    @foreach (var c in _availableCards)
+                                    {
+                                        <option value="@c.Id.Value">@c.Name (@c.SetName, @c.Rarity)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted">Print Number</label>
+                                <input class="form-control"
+                                       type="number"
+                                       min="1"
+                                       placeholder="e.g. 42"
+                                       @bind="_mintPrintNumber"
+                                       @bind:event="oninput" />
+                            </div>
+                            <div class="col-md-auto">
+                                <button class="btn btn-primary"
+                                        @onclick="MintAsync"
+                                        disabled="@(!CanMint || _saving)">
+                                    Mint &amp; Add
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
@@ -119,8 +214,20 @@ else
     private string? _error;
     private string? _success;
     private bool _saving;
+
+    // Sharing
     private string _shareEmail = "";
     private string _unshareEmail = "";
+
+    // Instances
+    private IReadOnlyList<CardInstance> _instances = [];
+    private Dictionary<CardId, Card> _cardLookup = [];
+    private IReadOnlyList<Card> _availableCards = [];
+
+    // Mint form
+    private string _mintCardId = "";
+    private int? _mintPrintNumber;
+    private bool CanMint => !string.IsNullOrEmpty(_mintCardId) && _mintPrintNumber is >= 1;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -128,9 +235,52 @@ else
         try
         {
             _collection = await CollectionSvc.GetByIdAsync(new CollectionId(Id));
+            if (_collection is not null)
+                await LoadInstancesAndCardsAsync();
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }
+    }
+
+    private async Task LoadInstancesAndCardsAsync()
+    {
+        _instances = await CardInstanceSvc.GetByCollectionAsync(new CollectionId(Id));
+        _availableCards = await CardSvc.GetAllAsync();
+        _cardLookup = _availableCards.ToDictionary(c => c.Id);
+    }
+
+    private async Task MintAsync()
+    {
+        if (!CanMint) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            var cardId = new CardId(Guid.Parse(_mintCardId));
+            await CardInstanceSvc.MintAndAddToCollectionAsync(
+                CardInstanceId.New(), cardId, userId, _mintPrintNumber!.Value, new CollectionId(Id));
+            _mintCardId = "";
+            _mintPrintNumber = null;
+            _success = "Instance minted and added to collection.";
+            await LoadInstancesAndCardsAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task RemoveInstanceAsync(CardInstanceId instanceId)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CardInstanceSvc.RemoveFromCollectionAsync(instanceId, userId, new CollectionId(Id));
+            _success = "Instance removed from collection.";
+            await LoadInstancesAndCardsAsync();
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to remove this instance."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
     }
 
     private async Task MakePublicAsync()
@@ -176,8 +326,6 @@ else
             var userId = await CurrentUser.GetUserIdAsync();
             await CollectionSvc.ShareWithUserAsync(new CollectionId(Id), userId, targetId.Value);
             _shareEmail = "";
-            _success = $"Shared with {_shareEmail.Trim() /*captured before clear*/}.";
-            // Re-capture the email before clearing for the success message
             _success = "Access granted.";
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to share this collection."; }

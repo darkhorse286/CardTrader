@@ -12,6 +12,8 @@ public sealed class CardInstance : Entity<CardInstanceId>
 
     private CardInstance() { }
 
+    public CollectionId? CollectionId { get; private set; }
+
     public static CardInstance Create(CardInstanceId id, CardId cardId, UserId ownerId, int printNumber)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(printNumber, 1);
@@ -22,8 +24,14 @@ public sealed class CardInstance : Entity<CardInstanceId>
     }
 
     public void AddToCollection(CollectionId collectionId)
-        => Raise(new CardInstanceAddedToCollection(Id, collectionId));
+    {
+        CollectionId = collectionId;
+        Raise(new CardInstanceAddedToCollection(Id, collectionId));
+    }
 
     public void RemoveFromCollection(CollectionId collectionId)
-        => Raise(new CardInstanceRemovedFromCollection(Id, collectionId));
+    {
+        CollectionId = null;
+        Raise(new CardInstanceRemovedFromCollection(Id, collectionId));
+    }
 }

@@ -125,4 +125,79 @@ public class CardInstanceServiceTests
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => _sut.RemoveFromCollectionAsync(CardInstanceId.New(), UserId.New(), CollectionId.New()));
     }
+
+    // ── MintAndAddToCollectionAsync ───────────────────────────────────────────
+
+    [Fact]
+    public async Task MintAndAddToCollectionAsync_PersistsAndDispatchesEvents()
+    {
+        var id = CardInstanceId.New();
+        var collectionId = CollectionId.New();
+
+        var result = await _sut.MintAndAddToCollectionAsync(id, CardId.New(), UserId.New(), 1, collectionId);
+
+        await _instances.Received().AddAsync(Arg.Is<CardInstance>(i => i.Id == id), Arg.Any<CancellationToken>());
+        await _dispatcher.Received().DispatchAsync(Arg.Any<IReadOnlyList<IDomainEvent>>(), Arg.Any<CancellationToken>());
+        Assert.Equal(id, result.Id);
+    }
+
+    [Fact]
+    public async Task MintAndAddToCollectionAsync_SetsCollectionId()
+    {
+        var collectionId = CollectionId.New();
+
+        var result = await _sut.MintAndAddToCollectionAsync(
+            CardInstanceId.New(), CardId.New(), UserId.New(), 1, collectionId);
+
+        Assert.Equal(collectionId, result.CollectionId);
+    }
+
+    [Fact]
+    public async Task MintAndAddToCollectionAsync_ClearsEventsAfterDispatch()
+    {
+        var result = await _sut.MintAndAddToCollectionAsync(
+            CardInstanceId.New(), CardId.New(), UserId.New(), 1, CollectionId.New());
+
+        Assert.Empty(result.DomainEvents);
+    }
+
+    // ── GetByCollectionAsync ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetByCollectionAsync_DelegatesToRepository()
+    {
+        var collectionId = CollectionId.New();
+        var expected = new List<CardInstance> { MakeInstance(CardInstanceId.New(), UserId.New()) };
+        _instances.GetByCollectionAsync(collectionId, Arg.Any<CancellationToken>()).Returns(expected);
+
+        var result = await _sut.GetByCollectionAsync(collectionId);
+
+        Assert.Equal(expected, result);
+    }
+
+    // ── AddToCollectionAsync (UpdateAsync) ────────────────────────────────────
+
+    [Fact]
+    public async Task AddToCollectionAsync_WhenAuthorized_CallsUpdateAsync()
+    {
+        var id = CardInstanceId.New();
+        _instances.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeInstance(id, UserId.New()));
+        Allow();
+
+        await _sut.AddToCollectionAsync(id, UserId.New(), CollectionId.New());
+
+        await _instances.Received().UpdateAsync(Arg.Any<CardInstance>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RemoveFromCollectionAsync_WhenAuthorized_CallsUpdateAsync()
+    {
+        var id = CardInstanceId.New();
+        _instances.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(MakeInstance(id, UserId.New()));
+        Allow();
+
+        await _sut.RemoveFromCollectionAsync(id, UserId.New(), CollectionId.New());
+
+        await _instances.Received().UpdateAsync(Arg.Any<CardInstance>(), Arg.Any<CancellationToken>());
+    }
 }
