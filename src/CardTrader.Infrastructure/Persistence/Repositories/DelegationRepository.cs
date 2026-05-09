@@ -11,10 +11,16 @@ internal sealed class DelegationRepository(AppDbContext db) : IDelegationReposit
         => db.Delegations.FirstOrDefaultAsync(d => d.Id == id, ct);
 
     public async Task<IReadOnlyList<Delegation>> GetByDelegatorAsync(UserId delegatorId, CancellationToken ct = default)
-        => await db.Delegations.Where(d => d.DelegatorId == delegatorId).ToListAsync(ct);
+        => await db.Delegations
+            .Where(d => d.DelegatorId == delegatorId)
+            .Where(d => !d.IsActive || d.ExpiresAt == null || d.ExpiresAt > DateTimeOffset.UtcNow)
+            .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Delegation>> GetByDelegateeAsync(UserId delegateeId, CancellationToken ct = default)
-        => await db.Delegations.Where(d => d.DelegateeId == delegateeId).ToListAsync(ct);
+        => await db.Delegations
+            .Where(d => d.DelegateeId == delegateeId)
+            .Where(d => !d.IsActive || d.ExpiresAt == null || d.ExpiresAt > DateTimeOffset.UtcNow)
+            .ToListAsync(ct);
 
     public async Task AddAsync(Delegation delegation, CancellationToken ct = default)
     {
