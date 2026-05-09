@@ -1,8 +1,11 @@
 #Requires -Version 7
-# Starts Postgres + OpenFGA, loads the FGA model, sets user-secrets, then runs the web app.
+# Starts Postgres + OpenFGA, applies DB migrations, loads the FGA model, then runs the web app.
 #
 # Usage (from repo root):
 #   .\Start-Dev.ps1
+#
+# Set CARDTRADER_DB_CONNECTION in your shell profile to avoid the password prompt:
+#   $env:CARDTRADER_DB_CONNECTION = "Host=localhost;Port=5432;Database=cardtrader;Username=cardtrader;Password=<password>"
 
 $ErrorActionPreference = "Stop"
 
@@ -14,6 +17,14 @@ $FGA        = Join-Path $PSScriptRoot "tools\fga.exe"
 if (-not (Test-Path $FGA)) {
     Write-Error "fga CLI not found at tools\fga.exe.`nDownload from https://github.com/openfga/cli/releases"
     exit 1
+}
+
+# Resolve connection string
+$connStr = $env:CARDTRADER_DB_CONNECTION
+if (-not $connStr) {
+    $securePwd = Read-Host "Postgres password for 'cardtrader'" -AsSecureString
+    $plain = [System.Net.NetworkCredential]::new("", $securePwd).Password
+    $connStr = "Host=localhost;Port=5432;Database=cardtrader;Username=cardtrader;Password=$plain"
 }
 
 # 1. Start containers
@@ -37,7 +48,25 @@ do {
 } until ($ok)
 Write-Host "OpenFGA is ready."
 
-# 3. Find or create the store
+# 3. Apply DB migrations (generate SQL inside container — avoids SCRAM-SHA-256 host auth issue)
+Write-Host "Applying migrations..."
+$tmpDir = "C:\Temp"
+if (-not (Test-Path $tmpDir)) { New-Item -ItemType Directory -Path $tmpDir | Out-Null }
+
+$env:CARDTRADER_DB_CONNECTION = "dummy"
+dotnet ef migrations script --project src/CardTrader.Infrastructure --context AppDbContext `
+    --idempotent --output "$tmpDir\migration-app.sql" --no-build
+dotnet ef migrations script --project src/CardTrader.Identity --context CardTraderIdentityDbContext `
+    --idempotent --output "$tmpDir\migration-identity.sql" --no-build
+$env:CARDTRADER_DB_CONNECTION = $connStr
+
+docker cp "$tmpDir\migration-app.sql"      docker-postgres-1:/tmp/migration-app.sql
+docker cp "$tmpDir\migration-identity.sql" docker-postgres-1:/tmp/migration-identity.sql
+docker exec docker-postgres-1 psql -U cardtrader -d cardtrader -f /tmp/migration-app.sql
+docker exec docker-postgres-1 psql -U cardtrader -d cardtrader -f /tmp/migration-identity.sql
+Write-Host "Migrations applied."
+
+# 4. Find or create the FGA store
 Write-Host "Resolving FGA store '$STORE_NAME'..."
 $storeJson = & $FGA store list --api-url $API_URL | ConvertFrom-Json
 $store = $storeJson.stores | Where-Object { $_.name -eq $STORE_NAME } | Select-Object -First 1
@@ -52,25 +81,22 @@ if ($store) {
     Write-Host "Created store: $STORE_ID"
 }
 
-# 4. Write the authorization model
+# 5. Write the authorization model
 Write-Host "Writing authorization model..."
 $modelJson = & $FGA model write --api-url $API_URL --store-id $STORE_ID --file $MODEL_FILE | ConvertFrom-Json
 $MODEL_ID = $modelJson.authorization_model_id
 Write-Host "Model ID: $MODEL_ID"
 
-# 5. Set user secrets
-Write-Host "Setting user secrets..."
+# 6. Set user secrets (for IDE / manual dotnet run use)
 dotnet user-secrets --project src/CardTrader.Web set "OpenFga:StoreId" $STORE_ID
 dotnet user-secrets --project src/CardTrader.Web set "OpenFga:AuthorizationModelId" $MODEL_ID
-$connStr = $env:CARDTRADER_DB_CONNECTION
-if (-not $connStr) {
-    $pwd = Read-Host "Postgres password for 'cardtrader'" -AsSecureString
-    $plain = [System.Net.NetworkCredential]::new("", $pwd).Password
-    $connStr = "Host=localhost;Port=5432;Database=cardtrader;Username=cardtrader;Password=$plain"
-}
 dotnet user-secrets --project src/CardTrader.Web set "ConnectionStrings:DefaultConnection" $connStr
 
-# 6. Start the web app
+# 7. Launch the web app — env vars take precedence over user secrets, guaranteeing the right values
 Write-Host ""
 Write-Host "Launching CardTrader..."
+$env:ASPNETCORE_ENVIRONMENT              = "Development"
+$env:ConnectionStrings__DefaultConnection = $connStr
+$env:OpenFga__StoreId                    = $STORE_ID
+$env:OpenFga__AuthorizationModelId       = $MODEL_ID
 dotnet run --project src/CardTrader.Web
