@@ -17,6 +17,9 @@ public class CardInstanceServiceTests
     private readonly IDomainEventDispatcher _dispatcher = Substitute.For<IDomainEventDispatcher>();
     private readonly CardInstanceService _sut;
 
+    private static readonly Card DefaultCard =
+        Card.Create(CardId.New(), "Test Card", "Test Set", "Common", "Test Player", printRun: 100);
+
     public CardInstanceServiceTests()
     {
         _sut = new CardInstanceService(_instances, _cards, _authz, _dispatcher);
@@ -24,6 +27,8 @@ public class CardInstanceServiceTests
             .Returns((IReadOnlyList<CardInstance>)[]);
         _instances.ExistsByCardAndPrintNumberAsync(Arg.Any<CardId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(false);
+        _cards.GetByIdAsync(Arg.Any<CardId>(), Arg.Any<CancellationToken>())
+            .Returns(DefaultCard);
     }
 
     private void SimulateDuplicatePrintNumber() =>
@@ -32,7 +37,7 @@ public class CardInstanceServiceTests
 
     private static CardInstance MakeInstance(CardInstanceId id, UserId owner)
     {
-        var i = CardInstance.Create(id, CardId.New(), owner, printNumber: 1);
+        var i = CardInstance.Create(id, CardId.New(), owner, printNumber: 1, printRun: 100);
         i.ClearDomainEvents();
         return i;
     }
@@ -73,6 +78,25 @@ public class CardInstanceServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => _sut.CreateAsync(CardInstanceId.New(), CardId.New(), UserId.New(), printNumber: 1));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCardNotFound_Throws()
+    {
+        _cards.GetByIdAsync(Arg.Any<CardId>(), Arg.Any<CancellationToken>()).Returns((Card?)null);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => _sut.CreateAsync(CardInstanceId.New(), CardId.New(), UserId.New(), printNumber: 1));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenPrintNumberExceedsPrintRun_Throws()
+    {
+        _cards.GetByIdAsync(Arg.Any<CardId>(), Arg.Any<CancellationToken>())
+            .Returns(Card.Create(CardId.New(), "Test", "Set", "Common", "Player", printRun: 5));
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => _sut.CreateAsync(CardInstanceId.New(), CardId.New(), UserId.New(), printNumber: 6));
     }
 
     // ── AddToRosterAsync ──────────────────────────────────────────────────────
@@ -187,6 +211,25 @@ public class CardInstanceServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => _sut.MintAndAddToRosterAsync(CardInstanceId.New(), CardId.New(), UserId.New(), 1, RosterId.New()));
+    }
+
+    [Fact]
+    public async Task MintAndAddToRosterAsync_WhenCardNotFound_Throws()
+    {
+        _cards.GetByIdAsync(Arg.Any<CardId>(), Arg.Any<CancellationToken>()).Returns((Card?)null);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => _sut.MintAndAddToRosterAsync(CardInstanceId.New(), CardId.New(), UserId.New(), 1, RosterId.New()));
+    }
+
+    [Fact]
+    public async Task MintAndAddToRosterAsync_WhenPrintNumberExceedsPrintRun_Throws()
+    {
+        _cards.GetByIdAsync(Arg.Any<CardId>(), Arg.Any<CancellationToken>())
+            .Returns(Card.Create(CardId.New(), "Test", "Set", "Common", "Player", printRun: 5));
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => _sut.MintAndAddToRosterAsync(CardInstanceId.New(), CardId.New(), UserId.New(), 6, RosterId.New()));
     }
 
     [Fact]
