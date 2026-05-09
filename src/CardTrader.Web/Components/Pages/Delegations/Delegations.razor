@@ -1,0 +1,321 @@
+@page "/delegations"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject DelegationService DelegationSvc
+@inject ICurrentUser CurrentUser
+@inject IUserLookup UserLookup
+
+<PageTitle>Delegations</PageTitle>
+
+<h1 class="mb-4">Delegations</h1>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger alert-dismissible">
+        @_error
+        <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+    </div>
+}
+@if (_success is not null)
+{
+    <div class="alert alert-success alert-dismissible">
+        @_success
+        <button type="button" class="btn-close" @onclick="() => _success = null"></button>
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">Delegate Authority</div>
+            <div class="card-body">
+                <p class="card-text text-muted small">
+                    Grant another user authority to act on your behalf.
+                    Active delegatees can supervise and cancel trade proposals on your account.
+                </p>
+                <div class="input-group" style="max-width: 420px">
+                    <input class="form-control"
+                           type="email"
+                           placeholder="delegatee@example.com"
+                           @bind="_delegateeEmail"
+                           @bind:event="oninput"
+                           @onkeydown="OnCreateKeyDown" />
+                    <button class="btn btn-primary"
+                            @onclick="CreateAsync"
+                            disabled="@(string.IsNullOrWhiteSpace(_delegateeEmail) || _saving)">
+                        Create Delegation
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Outgoing <small class="text-muted fw-normal">(you are delegating to others)</small></span>
+                <span class="badge bg-secondary">@_outgoing.Count</span>
+            </div>
+            <div class="card-body p-0">
+                @if (_loading)
+                {
+                    <p class="text-muted p-3 mb-0">Loading…</p>
+                }
+                else if (_outgoing.Count == 0)
+                {
+                    <p class="text-muted p-3 mb-0">No outgoing delegations.</p>
+                }
+                else
+                {
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Delegatee</th>
+                                <th>Status</th>
+                                <th>Expires</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in _outgoing)
+                            {
+                                <tr>
+                                    <td>@DisplayEmail(d.DelegateeId)</td>
+                                    <td><span class="badge @StatusClass(d)">@StatusLabel(d)</span></td>
+                                    <td>@(d.ExpiresAt?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                    <td class="text-end">
+                                        @if (!d.IsActive)
+                                        {
+                                            @if (_activatingWithExpiry == d.Id)
+                                            {
+                                                <div class="d-inline-flex align-items-center gap-2">
+                                                    <input type="date"
+                                                           class="form-control form-control-sm"
+                                                           style="width: 160px"
+                                                           @bind="_expiryDate" />
+                                                    <button class="btn btn-warning btn-sm"
+                                                            @onclick="() => ConfirmActivateWithExpiryAsync(d.Id)"
+                                                            disabled="@(string.IsNullOrEmpty(_expiryDate) || _saving)">
+                                                        Confirm
+                                                    </button>
+                                                    <button class="btn btn-outline-secondary btn-sm"
+                                                            @onclick="CancelExpiryMode">
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-success btn-sm me-1"
+                                                        @onclick="() => ActivateAsync(d.Id)"
+                                                        disabled="@_saving">
+                                                    Activate
+                                                </button>
+                                                <button class="btn btn-outline-warning btn-sm"
+                                                        @onclick="() => BeginActivateWithExpiry(d.Id)"
+                                                        disabled="@_saving">
+                                                    Activate Until…
+                                                </button>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-danger btn-sm"
+                                                    @onclick="() => RevokeAsync(d.Id)"
+                                                    disabled="@_saving">
+                                                Revoke
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Incoming <small class="text-muted fw-normal">(others delegating to you)</small></span>
+                <span class="badge bg-secondary">@_incoming.Count</span>
+            </div>
+            <div class="card-body p-0">
+                @if (_loading)
+                {
+                    <p class="text-muted p-3 mb-0">Loading…</p>
+                }
+                else if (_incoming.Count == 0)
+                {
+                    <p class="text-muted p-3 mb-0">No incoming delegations.</p>
+                }
+                else
+                {
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Delegator</th>
+                                <th>Status</th>
+                                <th>Expires</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in _incoming)
+                            {
+                                <tr>
+                                    <td>@DisplayEmail(d.DelegatorId)</td>
+                                    <td><span class="badge @StatusClass(d)">@StatusLabel(d)</span></td>
+                                    <td>@(d.ExpiresAt?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private string? _success;
+    private bool _saving;
+    private string _delegateeEmail = "";
+
+    private List<Delegation> _outgoing = [];
+    private List<Delegation> _incoming = [];
+    private Dictionary<UserId, string> _userEmails = new();
+    private UserId _currentUserId;
+
+    private DelegationId? _activatingWithExpiry;
+    private string _expiryDate = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _currentUserId = await CurrentUser.GetUserIdAsync();
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task LoadAsync()
+    {
+        var outgoing = await DelegationSvc.GetOutgoingAsync(_currentUserId);
+        var incoming = await DelegationSvc.GetIncomingAsync(_currentUserId);
+        _outgoing = outgoing.ToList();
+        _incoming = incoming.ToList();
+
+        var allIds = _outgoing.SelectMany(d => new[] { d.DelegatorId, d.DelegateeId })
+            .Concat(_incoming.SelectMany(d => new[] { d.DelegatorId, d.DelegateeId }))
+            .Distinct();
+        foreach (var id in allIds)
+            if (!_userEmails.ContainsKey(id))
+                _userEmails[id] = await UserLookup.GetEmailByIdAsync(id) ?? id.Value.ToString()[..8] + "…";
+    }
+
+    private string DisplayEmail(UserId id) =>
+        _userEmails.TryGetValue(id, out var email) ? email : id.Value.ToString()[..8] + "…";
+
+    private static string StatusLabel(Delegation d) => d.IsActive ? "Active" : "Inactive";
+
+    private static string StatusClass(Delegation d) =>
+        d.IsActive ? "bg-success" : "bg-secondary";
+
+    private void BeginActivateWithExpiry(DelegationId id)
+    {
+        _activatingWithExpiry = id;
+        _expiryDate = "";
+    }
+
+    private void CancelExpiryMode()
+    {
+        _activatingWithExpiry = null;
+        _expiryDate = "";
+    }
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_delegateeEmail)) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var delegateeId = await UserLookup.FindByEmailAsync(_delegateeEmail.Trim());
+            if (delegateeId is null)
+            {
+                _error = $"No account found for '{_delegateeEmail.Trim()}'.";
+                return;
+            }
+            await DelegationSvc.CreateAsync(DelegationId.New(), _currentUserId, delegateeId.Value);
+            _delegateeEmail = "";
+            _success = "Delegation created.";
+            await LoadAsync();
+        }
+        catch (ArgumentException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task ActivateAsync(DelegationId id)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            await DelegationSvc.ActivateAsync(id, _currentUserId);
+            _success = "Delegation activated.";
+            await LoadAsync();
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to activate this delegation."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task ConfirmActivateWithExpiryAsync(DelegationId id)
+    {
+        if (!DateTimeOffset.TryParse(_expiryDate, out var expiresAt))
+        {
+            _error = "Invalid date.";
+            return;
+        }
+        if (expiresAt <= DateTimeOffset.UtcNow)
+        {
+            _error = "Expiry date must be in the future.";
+            return;
+        }
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            await DelegationSvc.ActivateWithExpiryAsync(id, _currentUserId, expiresAt);
+            _activatingWithExpiry = null;
+            _success = "Delegation activated with expiry.";
+            await LoadAsync();
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to activate this delegation."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task RevokeAsync(DelegationId id)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            await DelegationSvc.RevokeAsync(id, _currentUserId);
+            _success = "Delegation revoked.";
+            await LoadAsync();
+        }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to revoke this delegation."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task OnCreateKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CreateAsync();
+    }
+}
