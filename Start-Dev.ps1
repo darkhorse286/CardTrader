@@ -62,6 +62,13 @@ Write-Host "Model ID: $MODEL_ID"
 Write-Host "Setting user secrets..."
 dotnet user-secrets --project src/CardTrader.Web set "OpenFga:StoreId" $STORE_ID
 dotnet user-secrets --project src/CardTrader.Web set "OpenFga:AuthorizationModelId" $MODEL_ID
+$connStr = $env:CARDTRADER_DB_CONNECTION
+if (-not $connStr) {
+    $pwd = Read-Host "Postgres password for 'cardtrader'" -AsSecureString
+    $plain = [System.Net.NetworkCredential]::new("", $pwd).Password
+    $connStr = "Host=localhost;Port=5432;Database=cardtrader;Username=cardtrader;Password=$plain"
+}
+dotnet user-secrets --project src/CardTrader.Web set "ConnectionStrings:DefaultConnection" $connStr
 
 # 6. Start the web app
 Write-Host ""
