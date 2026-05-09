@@ -7,6 +7,7 @@ public interface ICardInstanceRepository
 {
     Task<CardInstance?> GetByIdAsync(CardInstanceId id, CancellationToken ct = default);
     Task<IReadOnlyList<CardInstance>> GetByRosterAsync(RosterId rosterId, CancellationToken ct = default);
+    Task<bool> ExistsByCardAndPrintNumberAsync(CardId cardId, int printNumber, CancellationToken ct = default);
     Task AddAsync(CardInstance instance, CancellationToken ct = default);
     Task UpdateAsync(CardInstance instance, CancellationToken ct = default);
 }
