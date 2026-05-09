@@ -12,6 +12,9 @@ public sealed class TradeProposalService(
     IAuthorizationService authz,
     IDomainEventDispatcher dispatcher)
 {
+    public Task<IReadOnlyList<TradeProposal>> GetInvolvingUserAsync(UserId userId, CancellationToken ct = default)
+        => proposals.GetInvolvingUserAsync(userId, ct);
+
     public async Task<TradeProposal> CreateAsync(
         TradeProposalId id, UserId initiatorId, UserId recipientId, CancellationToken ct = default)
     {

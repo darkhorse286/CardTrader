@@ -10,6 +10,11 @@ internal sealed class TradeProposalRepository(AppDbContext db) : ITradeProposalR
     public Task<TradeProposal?> GetByIdAsync(TradeProposalId id, CancellationToken ct = default)
         => db.TradeProposals.FirstOrDefaultAsync(p => p.Id == id, ct);
 
+    public async Task<IReadOnlyList<TradeProposal>> GetInvolvingUserAsync(UserId userId, CancellationToken ct = default)
+        => await db.TradeProposals
+            .Where(p => p.InitiatorId == userId || p.RecipientId == userId)
+            .ToListAsync(ct);
+
     public async Task AddAsync(TradeProposal proposal, CancellationToken ct = default)
     {
         await db.TradeProposals.AddAsync(proposal, ct);
