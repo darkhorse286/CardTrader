@@ -79,4 +79,65 @@ public class CardInstanceRepositoryTests
         Assert.Equal(ownerId, result.OwnerId);
         Assert.Equal(7, result.PrintNumber);
     }
+
+    [Fact]
+    public async Task GetByCollectionAsync_ReturnsOnlyInstancesInCollection()
+    {
+        var dbName = nameof(GetByCollectionAsync_ReturnsOnlyInstancesInCollection);
+        var collectionId = CollectionId.New();
+        var otherId = CollectionId.New();
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var card = SeedCard(ctx);
+            var owner = UserId.New();
+
+            var inCollection = CardInstance.Create(CardInstanceId.New(), card.Id, owner, 1);
+            inCollection.AddToCollection(collectionId);
+
+            var alsoIn = CardInstance.Create(CardInstanceId.New(), card.Id, owner, 2);
+            alsoIn.AddToCollection(collectionId);
+
+            var notIn = CardInstance.Create(CardInstanceId.New(), card.Id, owner, 3);
+            notIn.AddToCollection(otherId);
+
+            var repo = new CardInstanceRepository(ctx);
+            await repo.AddAsync(inCollection);
+            await repo.AddAsync(alsoIn);
+            await repo.AddAsync(notIn);
+        }
+
+        await using var readCtx = CreateContext(dbName);
+        var results = await new CardInstanceRepository(readCtx).GetByCollectionAsync(collectionId);
+
+        Assert.Equal(2, results.Count);
+        Assert.All(results, i => Assert.Equal(collectionId, i.CollectionId));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PersistsCollectionIdChange()
+    {
+        var dbName = nameof(UpdateAsync_PersistsCollectionIdChange);
+        var instanceId = CardInstanceId.New();
+        var collectionId = CollectionId.New();
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var card = SeedCard(ctx);
+            var instance = CardInstance.Create(instanceId, card.Id, UserId.New(), 1);
+            await new CardInstanceRepository(ctx).AddAsync(instance);
+        }
+
+        await using (var ctx = CreateContext(dbName))
+        {
+            var repo = new CardInstanceRepository(ctx);
+            var instance = await repo.GetByIdAsync(instanceId);
+            instance!.AddToCollection(collectionId);
+            await repo.UpdateAsync(instance);
+        }
+
+        await using var readCtx = CreateContext(dbName);
+        var stored = await readCtx.CardInstances.FindAsync(instanceId);
+        Assert.Equal(collectionId, stored!.CollectionId);
+    }
 }
