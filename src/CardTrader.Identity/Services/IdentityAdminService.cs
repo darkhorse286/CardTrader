@@ -6,11 +6,9 @@ namespace CardTrader.Identity.Services;
 
 internal sealed class IdentityAdminService(UserManager<CardTraderUser> userManager) : IAdminService
 {
-    internal const string AdminRole = "Admin";
-
     public async Task<bool> IsAdminAsync(UserId userId, CancellationToken ct = default)
     {
         var user = await userManager.FindByIdAsync(userId.Value.ToString());
-        return user is not null && await userManager.IsInRoleAsync(user, AdminRole);
+        return user is not null && await userManager.IsInRoleAsync(user, CardTraderRoles.Admin);
     }
 }
