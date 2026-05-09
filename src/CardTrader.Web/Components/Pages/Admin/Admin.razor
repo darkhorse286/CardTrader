@@ -240,6 +240,7 @@ else
             await LoadTradesAsync();
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to cancel this trade."; }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }
