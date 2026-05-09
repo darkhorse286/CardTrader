@@ -2,6 +2,7 @@ using CardTrader.Application.Abstractions;
 using CardTrader.Identity.Persistence;
 using CardTrader.Identity.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,7 @@ public static class IdentityServiceExtensions
 
         services.AddScoped<ICurrentUser, AspNetCoreCurrentUser>();
         services.AddScoped<IUserLookup, AspNetCoreUserLookup>();
+        services.AddScoped<IAdminService, IdentityAdminService>();
 
         // Relaxed password rules for dev/PoC — tighten before any real deployment.
         return services
