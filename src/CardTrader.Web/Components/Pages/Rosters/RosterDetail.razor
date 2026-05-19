@@ -19,6 +19,11 @@ else if (_roster is null)
     <p class="text-danger">Roster not found.</p>
     <a href="/rosters" class="btn btn-secondary btn-sm">Back to Rosters</a>
 }
+else if (!_canView)
+{
+    <div class="alert alert-danger">You do not have permission to view this roster.</div>
+    <a href="/rosters" class="btn btn-secondary btn-sm">Back to Rosters</a>
+}
 else
 {
     <nav aria-label="breadcrumb" class="mb-3">
@@ -45,6 +50,8 @@ else
         </div>
     }
 
+    @if (_canManage)
+    {
     <div class="row g-4 mb-4">
         <div class="col-md-6">
             <div class="card h-100">
@@ -137,6 +144,8 @@ else
         </div>
     </div>
 
+    }
+
     <div class="row g-4">
         <div class="col-12">
             <div class="card">
@@ -180,11 +189,14 @@ else
                                         <td>@(card?.SetName ?? "—")</td>
                                         <td>@inst.PrintNumber / @(card?.PrintRun.ToString() ?? "?")</td>
                                         <td class="text-end">
-                                            <button class="btn btn-outline-danger btn-sm"
-                                                    @onclick="() => RemovePlayerAsync(inst.Id)"
-                                                    disabled="@_saving">
-                                                Remove
-                                            </button>
+                                            @if (_canManage)
+                                            {
+                                                <button class="btn btn-outline-danger btn-sm"
+                                                        @onclick="() => RemovePlayerAsync(inst.Id)"
+                                                        disabled="@_saving">
+                                                    Remove
+                                                </button>
+                                            }
                                         </td>
                                     </tr>
                                 }
@@ -195,6 +207,8 @@ else
             </div>
         </div>
 
+        @if (_canManage)
+        {
         <div class="col-12">
             <div class="card">
                 <div class="card-header">Add Player (Mint Card)</div>
@@ -244,6 +258,7 @@ else
                 </div>
             </div>
         </div>
+        }
     </div>
 }
 
@@ -252,6 +267,8 @@ else
 
     private Roster? _roster;
     private bool _loading = true;
+    private bool _canView;
+    private bool _canManage;
     private string? _error;
     private string? _success;
     private bool _saving;
@@ -290,11 +307,20 @@ else
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
+        _canView = false;
+        _canManage = false;
         try
         {
             _roster = await RosterSvc.GetByIdAsync(new RosterId(Id));
             if (_roster is not null)
-                await LoadPlayersAndCardsAsync();
+            {
+                var userId = await CurrentUser.GetUserIdAsync();
+                var rid = new RosterId(Id);
+                _canManage = await RosterSvc.CanManageAsync(rid, userId);
+                _canView = _canManage || await RosterSvc.CanViewAsync(rid, userId);
+                if (_canView)
+                    await LoadPlayersAndCardsAsync();
+            }
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }
