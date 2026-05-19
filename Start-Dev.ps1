@@ -2,10 +2,12 @@
 # Starts Postgres + OpenFGA, applies DB migrations, loads the FGA model, then runs the web app.
 #
 # Usage (from repo root):
-#   .\Start-Dev.ps1
+#   .\Start-Dev.ps1           — normal start
+#   .\Start-Dev.ps1 -Reset    — wipe the Postgres volume and start fresh (required after docker-compose auth changes)
 #
 # Set CARDTRADER_DB_CONNECTION in your shell profile to avoid the password prompt:
 #   $env:CARDTRADER_DB_CONNECTION = "Host=localhost;Port=5432;Database=cardtrader;Username=cardtrader;Password=<password>"
+param([switch]$Reset)
 
 $ErrorActionPreference = "Stop"
 
@@ -27,11 +29,27 @@ if (-not $connStr) {
     $connStr = "Host=localhost;Port=5432;Database=cardtrader;Username=cardtrader;Password=$plain"
 }
 
-# 1. Start containers
+# 1. Check for a local Postgres service that would shadow the Docker-mapped port
+$localPg = Get-Service -Name '*postgresql*','*postgres*' -ErrorAction SilentlyContinue |
+    Where-Object { $_.Status -eq 'Running' }
+if ($localPg) {
+    Write-Warning "A local PostgreSQL service ($($localPg.Name)) is running on this machine."
+    Write-Warning "It may intercept connections on port 5432 before they reach the Docker container."
+    Write-Warning "Stop it with: Stop-Service $($localPg.Name)"
+    $answer = Read-Host "Continue anyway? [y/N]"
+    if ($answer -ne 'y') { exit 1 }
+}
+
+# 2. Start containers (optionally wiping the Postgres volume for a clean slate)
+if ($Reset) {
+    Write-Host "Resetting Postgres volume..."
+    docker compose -f docker/docker-compose.yml down -v
+}
 Write-Host "Starting containers..."
 docker compose -f docker/docker-compose.yml up -d
 
-# 2. Wait for OpenFGA health endpoint
+
+# 3. Wait for OpenFGA health endpoint
 Write-Host "Waiting for OpenFGA to be ready..."
 $deadline = (Get-Date).AddSeconds(60)
 do {
