@@ -1,3 +1,4 @@
+using CardTrader.Application.Services;
 using CardTrader.Domain.Entities;
 using CardTrader.Domain.ValueObjects;
 using CardTrader.Identity;
@@ -12,18 +13,20 @@ public static class DemoDataSeeder
     internal const string AdminEmail = "admin@cardtrader.local";
     private const string AdminPassword = "Admin123!";
 
+    internal const string AliceEmail = "alice@cardtrader.local";
+    private const string AlicePassword = "Alice123!";
+
+    internal const string BobEmail = "bob@cardtrader.local";
+    private const string BobPassword = "Bob123!";
+
     public static async Task SeedAsync(IServiceProvider services)
     {
         await using var scope = services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
 
         await SeedAdminUserAsync(sp);
-
-        var db = sp.GetRequiredService<AppDbContext>();
-        if (await db.Cards.AnyAsync()) return;
-
-        db.Cards.AddRange(BuildCards());
-        await db.SaveChangesAsync();
+        await SeedCardsAsync(sp);
+        await SeedDemoScenarioAsync(sp);
     }
 
     private static async Task SeedAdminUserAsync(IServiceProvider sp)
@@ -47,6 +50,79 @@ public static class DemoDataSeeder
         if (!await userManager.IsInRoleAsync(admin, CardTraderRoles.Admin))
             await userManager.AddToRoleAsync(admin, CardTraderRoles.Admin);
     }
+
+    private static async Task SeedCardsAsync(IServiceProvider sp)
+    {
+        var db = sp.GetRequiredService<AppDbContext>();
+        if (await db.Cards.AnyAsync()) return;
+        db.Cards.AddRange(BuildCards());
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedDemoScenarioAsync(IServiceProvider sp)
+    {
+        var userManager = sp.GetRequiredService<UserManager<CardTraderUser>>();
+        if (await userManager.FindByEmailAsync(AliceEmail) is not null) return;
+
+        // Create demo users
+        var alice = await CreateDemoUserAsync(userManager, AliceEmail, AlicePassword);
+        var bob   = await CreateDemoUserAsync(userManager, BobEmail,   BobPassword);
+
+        var aliceId = UserId.Parse(alice.Id);
+        var bobId   = UserId.Parse(bob.Id);
+        var adminUser = await userManager.FindByEmailAsync(AdminEmail);
+        var adminId = UserId.Parse(adminUser!.Id);
+
+        var db              = sp.GetRequiredService<AppDbContext>();
+        var cardInstanceSvc = sp.GetRequiredService<CardInstanceService>();
+        var rosterSvc       = sp.GetRequiredService<RosterService>();
+        var tradeSvc        = sp.GetRequiredService<TradeProposalService>();
+        var delegationSvc   = sp.GetRequiredService<DelegationService>();
+
+        // Pick representative cards by position and name fragment
+        var allCards = await db.Cards.ToListAsync();
+        var sal  = Pick(allCards, "Goalie",   "Sail");
+        var max  = Pick(allCards, "Attack",   "Shorts");
+        var gus  = Pick(allCards, "Attack",   "Noodles");
+        var pete = Pick(allCards, "Midfield", "Two-Hats");
+        var walt = Pick(allCards, "Attack",   "Waffles");
+        var jim  = Pick(allCards, "Defense",  "Cheddar");
+
+        // Alice: one standalone instance + two on a roster
+        await cardInstanceSvc.CreateAsync(CardInstanceId.New(), sal.Id, aliceId, 1);
+        var aliceRoster = await rosterSvc.CreateAsync(RosterId.New(), "Alice's All-Stars", aliceId);
+        await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), max.Id, aliceId, 42, aliceRoster.Id);
+        await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), gus.Id, aliceId,  7, aliceRoster.Id);
+
+        // Bob: three cards on a roster + make it public
+        var bobRoster = await rosterSvc.CreateAsync(RosterId.New(), "Bob's Biscuits", bobId);
+        await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), pete.Id, bobId, 1, bobRoster.Id);
+        await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), walt.Id, bobId, 1, bobRoster.Id);
+        await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), jim.Id,  bobId, 1, bobRoster.Id);
+        await rosterSvc.MakePublicAsync(bobRoster.Id, bobId);
+
+        // Pending trade: alice proposes to bob
+        await tradeSvc.CreateAsync(TradeProposalId.New(), aliceId, bobId);
+
+        // Delegation: bob delegates to admin (activated — demonstrates parent-managed accounts)
+        var delegation = await delegationSvc.CreateAsync(DelegationId.New(), bobId, adminId);
+        await delegationSvc.ActivateAsync(delegation.Id, bobId);
+    }
+
+    private static async Task<CardTraderUser> CreateDemoUserAsync(
+        UserManager<CardTraderUser> userManager, string email, string password)
+    {
+        var user = new CardTraderUser { UserName = email, Email = email };
+        var result = await userManager.CreateAsync(user, password);
+        if (!result.Succeeded)
+            throw new InvalidOperationException(
+                $"Failed to create user {email}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+        return user;
+    }
+
+    private static Card Pick(List<Card> cards, string position, string nameFragment)
+        => cards.First(c => c.PlayerPosition == position &&
+                            c.Name.Contains(nameFragment, StringComparison.OrdinalIgnoreCase));
 
     private static IEnumerable<Card> BuildCards() =>
     [
