@@ -1,9 +1,12 @@
 using CardTrader.Authorization.Relations;
 using CardTrader.Authorization.Types;
+using CardTrader.Domain.Entities;
 using CardTrader.Domain.Events;
+using CardTrader.Domain.Repositories;
 using CardTrader.Domain.ValueObjects;
 using CardTrader.Infrastructure.OpenFga;
 using CardTrader.Infrastructure.TupleWriters;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using OpenFga.Sdk.Client.Model;
 
@@ -14,7 +17,23 @@ public sealed class TradeProposalTupleWriterTests
     private readonly IFgaWriteClient _fga = Substitute.For<IFgaWriteClient>();
     private readonly TradeProposalTupleWriter _sut;
 
-    public TradeProposalTupleWriterTests() => _sut = new TradeProposalTupleWriter(_fga);
+    public TradeProposalTupleWriterTests()
+    {
+        var delegRepo = Substitute.For<IDelegationRepository>();
+        delegRepo.GetByDelegateeAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<Delegation>>([]));
+
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IDelegationRepository)).Returns(delegRepo);
+
+        var scope = Substitute.For<IServiceScope>();
+        scope.ServiceProvider.Returns(serviceProvider);
+
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+
+        _sut = new TradeProposalTupleWriter(_fga, scopeFactory);
+    }
 
     // ── CanHandle ────────────────────────────────────────────────────────────
 

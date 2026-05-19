@@ -117,4 +117,37 @@ public class DelegationServiceIntegrationTests(IntegrationFixture fixture)
 
         Assert.False(await HasRelation(scope, delegator, FgaRelations.ActiveDelegator, id));
     }
+
+    // ── ActivateWithExpiryAsync ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task ActivateWithExpiry_GrantsActiveDelegatorRelation()
+    {
+        using var scope = fixture.CreateScope();
+        var id = DelegationId.New();
+        var delegator = UserId.New();
+        var delegatee = UserId.New();
+        var expiresAt = DateTimeOffset.UtcNow.AddDays(30);
+
+        await Service(scope).CreateAsync(id, delegator, delegatee);
+        await Service(scope).ActivateWithExpiryAsync(id, delegator, expiresAt);
+
+        // FGA evaluates the not_expired condition against current time
+        Assert.True(await HasRelation(scope, delegator, FgaRelations.ActiveDelegator, id));
+    }
+
+    [Fact]
+    public async Task ActivateWithExpiry_ByDelegatee_Throws()
+    {
+        using var scope = fixture.CreateScope();
+        var id = DelegationId.New();
+        var delegator = UserId.New();
+        var delegatee = UserId.New();
+
+        await Service(scope).CreateAsync(id, delegator, delegatee);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => Service(scope).ActivateWithExpiryAsync(
+                id, delegatee, DateTimeOffset.UtcNow.AddDays(7)));
+    }
 }
