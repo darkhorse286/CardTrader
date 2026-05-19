@@ -15,4 +15,14 @@ public interface IAuthorizationService
         string relation,
         string @object,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all object IDs (formatted as "type:id") on which
+    /// <paramref name="user"/> holds <paramref name="relation"/>.
+    /// </summary>
+    Task<IReadOnlyList<string>> ListObjectsAsync(
+        string user,
+        string relation,
+        string type,
+        CancellationToken cancellationToken = default);
 }

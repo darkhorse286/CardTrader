@@ -46,6 +46,10 @@ public sealed class CardInstanceService(
         RosterId rosterId, CancellationToken ct = default)
         => instances.GetByRosterAsync(rosterId, ct);
 
+    public Task<IReadOnlyList<CardInstance>> GetOwnedAsync(
+        UserId ownerId, CancellationToken ct = default)
+        => instances.GetByOwnerAsync(ownerId, ct);
+
     public async Task AddToRosterAsync(
         CardInstanceId id, UserId requestingUserId, RosterId rosterId, CancellationToken ct = default)
     {
