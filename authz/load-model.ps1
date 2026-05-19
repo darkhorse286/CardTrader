@@ -34,7 +34,7 @@ if ($store) {
 } else {
     Write-Host "Store not found — creating ..."
     $createJson = & $FGA store create --api-url $API_URL --name $STORE_NAME | ConvertFrom-Json
-    $STORE_ID = $createJson.id
+    $STORE_ID = $createJson.store.id
     Write-Host "Created store: $STORE_ID"
 }
 
