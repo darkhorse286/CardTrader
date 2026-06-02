@@ -55,6 +55,8 @@ public sealed class CardInstanceService(
     {
         var instance = await GetOrThrowAsync(id, ct);
         await CheckOrThrowAsync(requestingUserId, FgaRelations.CanManage, id, ct);
+        var card = await cards.GetByIdAsync(instance.CardId, ct);
+        await ValidateRosterSlotAsync(card, rosterId, ct);
         instance.AddToRoster(rosterId);
         await instances.UpdateAsync(instance, ct);
         await dispatcher.DispatchAsync(instance.DomainEvents, ct);

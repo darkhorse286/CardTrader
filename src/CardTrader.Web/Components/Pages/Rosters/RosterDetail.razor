@@ -211,7 +211,51 @@ else
         {
         <div class="col-12">
             <div class="card">
-                <div class="card-header">Add Player (Mint Card)</div>
+                <div class="card-header">Add from Collection</div>
+                <div class="card-body">
+                    @if (_instances.Count >= RosterConstraints.MaxSize)
+                    {
+                        <p class="text-muted mb-0">Roster is full (@RosterConstraints.MaxSize/@RosterConstraints.MaxSize players).</p>
+                    }
+                    else if (AddableInstances.Count == 0)
+                    {
+                        <p class="text-muted mb-0">
+                            No unrostered cards in your collection fit this roster's open slots.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted">Your card</label>
+                                <select class="form-select" @bind="_addInstanceId">
+                                    <option value="">— select a card —</option>
+                                    @foreach (var inst in AddableInstances)
+                                    {
+                                        var card = _cardLookup.GetValueOrDefault(inst.CardId);
+                                        <option value="@inst.Id.Value">
+                                            @(card?.PlayerName ?? "—")
+                                            (@(card?.Rarity ?? "?"), #@inst.PrintNumber / @(card?.PrintRun ?? 0))
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-auto">
+                                <button class="btn btn-outline-primary"
+                                        @onclick="AddFromCollectionAsync"
+                                        disabled="@(string.IsNullOrEmpty(_addInstanceId) || _saving)">
+                                    Add to Roster
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">Mint New Card</div>
                 <div class="card-body">
                     @if (_availableCards.Count == 0)
                     {
@@ -277,11 +321,14 @@ else
     private string _unshareEmail = "";
 
     private IReadOnlyList<CardInstance> _instances = [];
+    private IReadOnlyList<CardInstance> _unrosteredInstances = [];
     private Dictionary<CardId, Card> _cardLookup = [];
     private IReadOnlyList<Card> _availableCards = [];
+    private UserId _userId;
 
     private string _mintCardId = "";
     private int? _mintPrintNumber;
+    private string _addInstanceId = "";
 
     private Card? SelectedCard =>
         string.IsNullOrEmpty(_mintCardId) ? null
@@ -304,6 +351,17 @@ else
         })
         .ToList();
 
+    // Unrostered instances the current user owns that fit the roster's open position slots
+    private IReadOnlyList<CardInstance> AddableInstances => _unrosteredInstances
+        .Where(inst =>
+        {
+            var card = _cardLookup.GetValueOrDefault(inst.CardId);
+            if (card?.PlayerPosition is not { } pos) return true;
+            if (!RosterConstraints.PositionSlots.TryGetValue(pos, out var max)) return true;
+            return PositionCount(pos) < max;
+        })
+        .ToList();
+
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
@@ -314,10 +372,10 @@ else
             _roster = await RosterSvc.GetByIdAsync(new RosterId(Id));
             if (_roster is not null)
             {
-                var userId = await CurrentUser.GetUserIdAsync();
+                _userId = await CurrentUser.GetUserIdAsync();
                 var rid = new RosterId(Id);
-                _canManage = await RosterSvc.CanManageAsync(rid, userId);
-                _canView = _canManage || await RosterSvc.CanViewAsync(rid, userId);
+                _canManage = await RosterSvc.CanManageAsync(rid, _userId);
+                _canView = _canManage || await RosterSvc.CanViewAsync(rid, _userId);
                 if (_canView)
                     await LoadPlayersAndCardsAsync();
             }
@@ -331,6 +389,11 @@ else
         _instances = await CardInstanceSvc.GetByRosterAsync(new RosterId(Id));
         _availableCards = await CardSvc.GetAllAsync();
         _cardLookup = _availableCards.ToDictionary(c => c.Id);
+        if (_canManage)
+        {
+            var owned = await CardInstanceSvc.GetOwnedAsync(_userId);
+            _unrosteredInstances = owned.Where(i => i.RosterId is null).ToList();
+        }
     }
 
     private async Task MintAsync()
@@ -339,10 +402,9 @@ else
         _error = null; _success = null; _saving = true;
         try
         {
-            var userId = await CurrentUser.GetUserIdAsync();
             var cardId = new CardId(Guid.Parse(_mintCardId));
             await CardInstanceSvc.MintAndAddToRosterAsync(
-                CardInstanceId.New(), cardId, userId, _mintPrintNumber!.Value, new RosterId(Id));
+                CardInstanceId.New(), cardId, _userId, _mintPrintNumber!.Value, new RosterId(Id));
             _mintCardId = "";
             _mintPrintNumber = null;
             _success = "Player card minted and added to roster.";
@@ -355,13 +417,30 @@ else
         finally { _saving = false; }
     }
 
+    private async Task AddFromCollectionAsync()
+    {
+        if (string.IsNullOrEmpty(_addInstanceId)) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var instanceId = new CardInstanceId(Guid.Parse(_addInstanceId));
+            await CardInstanceSvc.AddToRosterAsync(instanceId, _userId, new RosterId(Id));
+            _addInstanceId = "";
+            _success = "Card added to roster.";
+            await LoadPlayersAndCardsAsync();
+        }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to add this card."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
     private async Task RemovePlayerAsync(CardInstanceId instanceId)
     {
         _error = null; _success = null; _saving = true;
         try
         {
-            var userId = await CurrentUser.GetUserIdAsync();
-            await CardInstanceSvc.RemoveFromRosterAsync(instanceId, userId, new RosterId(Id));
+            await CardInstanceSvc.RemoveFromRosterAsync(instanceId, _userId, new RosterId(Id));
             _success = "Player removed from roster.";
             await LoadPlayersAndCardsAsync();
         }
@@ -375,8 +454,7 @@ else
         _error = null; _success = null;
         try
         {
-            var userId = await CurrentUser.GetUserIdAsync();
-            await RosterSvc.MakePublicAsync(new RosterId(Id), userId);
+            await RosterSvc.MakePublicAsync(new RosterId(Id), _userId);
             _success = "Roster is now public — anyone can view it.";
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to change this roster."; }
@@ -388,8 +466,7 @@ else
         _error = null; _success = null;
         try
         {
-            var userId = await CurrentUser.GetUserIdAsync();
-            await RosterSvc.MakePrivateAsync(new RosterId(Id), userId);
+            await RosterSvc.MakePrivateAsync(new RosterId(Id), _userId);
             _success = "Roster is now private.";
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to change this roster."; }
@@ -409,8 +486,7 @@ else
         {
             var targetId = await UserLookup.FindByEmailAsync(_shareEmail.Trim());
             if (targetId is null) { _error = $"No account found for '{_shareEmail.Trim()}'."; return; }
-            var userId = await CurrentUser.GetUserIdAsync();
-            await RosterSvc.ShareWithUserAsync(new RosterId(Id), userId, targetId.Value);
+            await RosterSvc.ShareWithUserAsync(new RosterId(Id), _userId, targetId.Value);
             _shareEmail = "";
             _success = "Access granted.";
         }
@@ -432,8 +508,7 @@ else
         {
             var targetId = await UserLookup.FindByEmailAsync(_unshareEmail.Trim());
             if (targetId is null) { _error = $"No account found for '{_unshareEmail.Trim()}'."; return; }
-            var userId = await CurrentUser.GetUserIdAsync();
-            await RosterSvc.UnshareAsync(new RosterId(Id), userId, targetId.Value);
+            await RosterSvc.UnshareAsync(new RosterId(Id), _userId, targetId.Value);
             _unshareEmail = "";
             _success = "Access revoked.";
         }

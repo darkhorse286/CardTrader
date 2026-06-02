@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @inject CardService CardSvc
 @inject CardInstanceService CardInstanceSvc
+@inject RosterService RosterSvc
 @inject PackService PackSvc
 @inject ICurrentUser CurrentUser
 @inject AuthenticationStateProvider AuthState
@@ -74,6 +75,29 @@ else
                                     @if (inst.RosterId is { } rid)
                                     {
                                         <a href="/rosters/@rid.Value">on roster</a>
+                                    }
+                                    else if (_ownedRosters.Count > 0)
+                                    {
+                                        <div class="d-flex gap-1 align-items-center">
+                                            <select class="form-select form-select-sm"
+                                                    style="min-width: 130px"
+                                                    value="@(_pendingRoster.TryGetValue(inst.Id, out var v) ? v : string.Empty)"
+                                                    @onchange="e => _pendingRoster[inst.Id] = e.Value?.ToString() ?? string.Empty">
+                                                <option value="">+ roster</option>
+                                                @foreach (var roster in _ownedRosters)
+                                                {
+                                                    <option value="@roster.Id.Value">@roster.Name</option>
+                                                }
+                                            </select>
+                                            @if (_pendingRoster.TryGetValue(inst.Id, out var sel) && !string.IsNullOrEmpty(sel))
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary"
+                                                        @onclick="() => AddToRosterAsync(inst.Id, new RosterId(Guid.Parse(sel)))"
+                                                        disabled="@_saving">
+                                                    Add
+                                                </button>
+                                            }
+                                        </div>
                                     }
                                     else
                                     {
@@ -274,7 +298,9 @@ else
 
     private IReadOnlyList<Card> _cards = [];
     private IReadOnlyList<CardInstance> _ownedInstances = [];
+    private IReadOnlyList<Roster> _ownedRosters = [];
     private Dictionary<CardId, Card> _cardLookup = [];
+    private Dictionary<CardInstanceId, string> _pendingRoster = new();
     private string _filter = "";
 
     // Admin mint state
@@ -311,11 +337,31 @@ else
         {
             var userId = await CurrentUser.GetUserIdAsync();
             _ownedInstances = await CardInstanceSvc.GetOwnedAsync(userId);
+            _ownedRosters   = await RosterSvc.GetOwnedAsync(userId);
             if (!_isAdmin)
                 _lastPackClaim = await PackSvc.GetLastClaimAsync(userId);
         }
         catch { /* unauthenticated — instances stay empty */ }
         _loading = false;
+    }
+
+    // ── Add to roster (from collection table) ─────────────────────────────────
+
+    private async Task AddToRosterAsync(CardInstanceId instanceId, RosterId rosterId)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CardInstanceSvc.AddToRosterAsync(instanceId, userId, rosterId);
+            _pendingRoster.Remove(instanceId);
+            _success = "Card added to roster.";
+            _ownedInstances = await CardInstanceSvc.GetOwnedAsync(userId);
+        }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to manage this card."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
     }
 
     // ── Admin mint ────────────────────────────────────────────────────────────
