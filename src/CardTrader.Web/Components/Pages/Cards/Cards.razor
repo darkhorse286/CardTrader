@@ -91,49 +91,34 @@ else
     }
     else
     {
-        @foreach (var group in FilteredCards.GroupBy(c => c.SetName).OrderBy(g => g.Key))
-        {
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span class="fw-semibold">@group.Key</span>
-                    <span class="badge bg-secondary">@group.Count()</span>
+        <div class="ct-cards-grid">
+            @foreach (var card in FilteredCards.OrderBy(c => RarityOrder(c.Rarity)).ThenBy(c => c.PlayerName))
+            {
+                var css = RarityCssClass(card.Rarity);
+                <div class="ct-card @css">
+                    <div class="ct-card-header">
+                        <span class="ct-set-name" title="@card.SetName">@card.SetName</span>
+                        <span class="ct-rarity-pill">@card.Rarity</span>
+                    </div>
+                    @if (card.ImageUrl is { } url)
+                    {
+                        <img class="ct-card-art" src="@url" alt="@card.PlayerName" />
+                    }
+                    else
+                    {
+                        <div class="ct-card-art"></div>
+                    }
+                    <div class="ct-card-body">
+                        <p class="ct-player-name" title="@card.PlayerName">@card.PlayerName</p>
+                        <p class="ct-player-meta">@(card.PlayerPosition ?? "—") · @(card.TeamName ?? "—")</p>
+                    </div>
+                    <div class="ct-card-footer">
+                        <span class="ct-footer-label">CardTrader</span>
+                        <span class="ct-footer-run">/@card.PrintRun.ToString("N0")</span>
+                    </div>
                 </div>
-                <div class="card-body p-0">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Player</th>
-                                <th>Position</th>
-                                <th>Team</th>
-                                <th>Rarity</th>
-                                <th class="text-end">Print Run</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var card in group.OrderBy(c => c.PlayerPosition).ThenBy(c => c.PlayerName))
-                            {
-                                <tr>
-                                    <td>@card.PlayerName</td>
-                                    <td>
-                                        @if (card.PlayerPosition is { } pos)
-                                        {
-                                            <span class="badge @PositionClass(pos)">@pos</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">—</span>
-                                        }
-                                    </td>
-                                    <td>@(card.TeamName ?? "—")</td>
-                                    <td><span class="badge @RarityClass(card.Rarity)">@card.Rarity</span></td>
-                                    <td class="text-end">@card.PrintRun.ToString("N0")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        }
+            }
+        </div>
     }
 }
 
@@ -178,5 +163,23 @@ else
         "Rare"       => "bg-primary",
         "Uncommon"   => "bg-info text-dark",
         _            => "bg-secondary",
+    };
+
+    private static string RarityCssClass(string rarity) => rarity switch
+    {
+        "Legendary"  => "legendary",
+        "Ultra Rare" => "ultra-rare",
+        "Rare"       => "rare",
+        "Uncommon"   => "uncommon",
+        _            => "common",
+    };
+
+    private static int RarityOrder(string rarity) => rarity switch
+    {
+        "Legendary"  => 0,
+        "Ultra Rare" => 1,
+        "Rare"       => 2,
+        "Uncommon"   => 3,
+        _            => 4,
     };
 }
