@@ -23,6 +23,12 @@ internal sealed class CardInstanceRepository(AppDbContext db) : ICardInstanceRep
     public Task<bool> ExistsByCardAndPrintNumberAsync(CardId cardId, int printNumber, CancellationToken ct = default)
         => db.CardInstances.AnyAsync(c => c.CardId == cardId && c.PrintNumber == printNumber, ct);
 
+    public async Task<IReadOnlyList<int>> GetTakenPrintNumbersAsync(CardId cardId, CancellationToken ct = default)
+        => await db.CardInstances
+            .Where(c => c.CardId == cardId)
+            .Select(c => c.PrintNumber)
+            .ToListAsync(ct);
+
     public async Task AddAsync(CardInstance instance, CancellationToken ct = default)
     {
         await db.CardInstances.AddAsync(instance, ct);

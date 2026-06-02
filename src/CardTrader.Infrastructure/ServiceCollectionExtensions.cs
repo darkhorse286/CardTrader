@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRosterRepository, RosterRepository>();
         services.AddScoped<ITradeProposalRepository, TradeProposalRepository>();
         services.AddScoped<IDelegationRepository, DelegationRepository>();
+        services.AddScoped<IPackClaimRepository, PackClaimRepository>();
 
         return services;
     }

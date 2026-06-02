@@ -12,6 +12,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TradeProposalService>();
         services.AddScoped<RosterService>();
         services.AddScoped<DelegationService>();
+        services.AddScoped<PackService>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(Random.Shared);
         return services;
     }
 }

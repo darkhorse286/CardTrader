@@ -80,7 +80,7 @@ public sealed class CardInstanceService(
     {
         if (await instances.ExistsByCardAndPrintNumberAsync(cardId, printNumber, ct))
             throw new InvalidOperationException(
-                $"Print #{printNumber} for card {cardId} already exists.");
+                $"Print #{printNumber} is already taken for this card.");
     }
 
     private async Task ValidateRosterSlotAsync(Card? card, RosterId rosterId, CancellationToken ct)
