@@ -4,9 +4,9 @@
 @inject RosterService RosterSvc
 @inject ICurrentUser CurrentUser
 
-<PageTitle>My Rosters</PageTitle>
+<PageTitle>Rosters</PageTitle>
 
-<h1 class="mb-4">My Rosters</h1>
+<h1 class="mb-4">Rosters</h1>
 
 @if (_error is not null)
 {
@@ -41,46 +41,68 @@
     </div>
 </div>
 
-@if (_rosters is null)
+@if (_owned is null)
 {
     <p class="text-muted">Loading…</p>
 }
-else if (_rosters.Count == 0)
-{
-    <p class="text-muted">No rosters yet — create one above.</p>
-}
 else
 {
-    <div class="list-group">
-        @foreach (var r in _rosters)
-        {
-            <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                <a href="/rosters/@r.Id.Value" class="fw-semibold text-decoration-none stretched-link">
+    <!-- My Rosters -->
+    <h5 class="text-muted fw-normal mb-2">My Rosters</h5>
+    @if (_owned.Count == 0)
+    {
+        <p class="text-muted mb-4">No rosters yet — create one above.</p>
+    }
+    else
+    {
+        <div class="list-group mb-4">
+            @foreach (var r in _owned)
+            {
+                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                    <a href="/rosters/@r.Id.Value" class="fw-semibold text-decoration-none stretched-link">
+                        @r.Name
+                    </a>
+                    <div class="btn-group btn-group-sm position-relative" style="z-index:1">
+                        <button class="btn btn-outline-secondary"
+                                @onclick="() => MakePublicAsync(r.Id)"
+                                title="Anyone can view">
+                            Make Public
+                        </button>
+                        <button class="btn btn-outline-secondary"
+                                @onclick="() => MakePrivateAsync(r.Id)"
+                                title="Only you and people you share with can view">
+                            Make Private
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Shared with me -->
+    @if (_shared.Count > 0)
+    {
+        <h5 class="text-muted fw-normal mb-2">Shared with Me</h5>
+        <div class="list-group mb-4">
+            @foreach (var r in _shared)
+            {
+                <a href="/rosters/@r.Id.Value"
+                   class="list-group-item list-group-item-action fw-semibold">
                     @r.Name
                 </a>
-                <div class="btn-group btn-group-sm position-relative" style="z-index:1">
-                    <button class="btn btn-outline-secondary"
-                            @onclick="() => MakePublicAsync(r.Id)"
-                            title="Anyone can view">
-                        Make Public
-                    </button>
-                    <button class="btn btn-outline-secondary"
-                            @onclick="() => MakePrivateAsync(r.Id)"
-                            title="Only you and people you share with can view">
-                        Make Private
-                    </button>
-                </div>
-            </div>
-        }
-    </div>
+            }
+        </div>
+    }
 }
 
 @code {
-    private IReadOnlyList<Roster>? _rosters;
+    private IReadOnlyList<Roster>? _owned;
+    private List<Roster> _shared = [];
     private string _newName = "";
     private string? _error;
     private string? _success;
     private bool _saving;
+    private UserId _currentUserId;
 
     protected override async Task OnInitializedAsync()
         => await LoadAsync();
@@ -89,8 +111,12 @@ else
     {
         try
         {
-            var userId = await CurrentUser.GetUserIdAsync();
-            _rosters = await RosterSvc.GetOwnedAsync(userId);
+            _currentUserId = await CurrentUser.GetUserIdAsync();
+            var ownedList = await RosterSvc.GetOwnedAsync(_currentUserId);
+            var allVisible = await RosterSvc.GetAllVisibleAsync(_currentUserId);
+            var ownedIds = ownedList.Select(r => r.Id).ToHashSet();
+            _owned = ownedList;
+            _shared = allVisible.Where(r => !ownedIds.Contains(r.Id)).ToList();
         }
         catch (Exception ex) { _error = ex.Message; }
     }
@@ -106,8 +132,7 @@ else
         _error = null; _success = null; _saving = true;
         try
         {
-            var userId = await CurrentUser.GetUserIdAsync();
-            await RosterSvc.CreateAsync(RosterId.New(), _newName.Trim(), userId);
+            await RosterSvc.CreateAsync(RosterId.New(), _newName.Trim(), _currentUserId);
             _newName = "";
             _success = "Roster created.";
             await LoadAsync();
@@ -121,8 +146,7 @@ else
         _error = null; _success = null;
         try
         {
-            var userId = await CurrentUser.GetUserIdAsync();
-            await RosterSvc.MakePublicAsync(id, userId);
+            await RosterSvc.MakePublicAsync(id, _currentUserId);
             _success = "Roster is now public — anyone can view it.";
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to change this roster."; }
@@ -134,8 +158,7 @@ else
         _error = null; _success = null;
         try
         {
-            var userId = await CurrentUser.GetUserIdAsync();
-            await RosterSvc.MakePrivateAsync(id, userId);
+            await RosterSvc.MakePrivateAsync(id, _currentUserId);
             _success = "Roster is now private.";
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to change this roster."; }

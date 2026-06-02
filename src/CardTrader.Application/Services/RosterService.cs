@@ -18,6 +18,34 @@ public sealed class RosterService(
     public Task<IReadOnlyList<Roster>> GetOwnedAsync(UserId ownerId, CancellationToken ct = default)
         => rosters.GetAllByOwnerAsync(ownerId, ct);
 
+    public async Task<IReadOnlyList<Roster>> GetAllVisibleAsync(UserId userId, CancellationToken ct = default)
+    {
+        var owned = await rosters.GetAllByOwnerAsync(userId, ct);
+        var fgaIds = await authz.ListObjectsAsync(
+            $"{FgaTypes.User}:{userId}", FgaRelations.CanView, FgaTypes.Roster, ct);
+
+        var ownedIds = owned.Select(r => r.Id).ToHashSet();
+        var shared = new List<Roster>();
+        foreach (var fgaId in fgaIds)
+        {
+            var colonIdx = fgaId.IndexOf(':');
+            if (colonIdx < 0 || !Guid.TryParse(fgaId[(colonIdx + 1)..], out var guid)) continue;
+            var rid = new RosterId(guid);
+            if (ownedIds.Contains(rid)) continue;
+            var r = await rosters.GetByIdAsync(rid, ct);
+            if (r is not null) shared.Add(r);
+        }
+        return [..owned, ..shared];
+    }
+
+    public Task<bool> CanViewAsync(RosterId id, UserId userId, CancellationToken ct = default)
+        => authz.CheckAsync(
+            $"{FgaTypes.User}:{userId}", FgaRelations.CanView, $"{FgaTypes.Roster}:{id}", ct);
+
+    public Task<bool> CanManageAsync(RosterId id, UserId userId, CancellationToken ct = default)
+        => authz.CheckAsync(
+            $"{FgaTypes.User}:{userId}", FgaRelations.CanManage, $"{FgaTypes.Roster}:{id}", ct);
+
     public async Task<Roster> CreateAsync(
         RosterId id, string name, UserId ownerId, CancellationToken ct = default)
     {

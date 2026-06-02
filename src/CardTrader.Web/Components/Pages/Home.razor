@@ -1,7 +1,56 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>CardTrader</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="ct-hero mb-4">
+    <h1 class="mb-1">CardTrader</h1>
+    <p class="lead mb-0">Relationship-based access control with OpenFGA (Zanzibar) — proof of concept</p>
+</div>
 
-Welcome to your new app.
+<p class="text-muted mb-4">
+    This PoC demonstrates fine-grained, relationship-based authorization applied to a trading-card
+    platform. Every permission check is delegated to an OpenFGA store — no if-statements in service
+    or UI code. Use the navigation to explore cards, build rosters, propose trades, and model
+    parent-managed delegation.
+</p>
+
+<div class="row g-3">
+    <div class="col-12 col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <span class="bi bi-credit-card-fill-nav-menu" aria-hidden="true" style="filter:invert(1) brightness(0.4); margin-right:.4rem;"></span>
+                    Cards
+                </h5>
+                <p class="card-text text-muted">Browse the card catalogue. Ownership and rarity access are enforced per-instance via FGA tuples.</p>
+                <a href="cards" class="btn btn-primary btn-sm">View Cards</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <span class="bi bi-collection-fill-nav-menu" aria-hidden="true" style="filter:invert(1) brightness(0.4); margin-right:.4rem;"></span>
+                    Rosters
+                </h5>
+                <p class="card-text text-muted">Create public or private rosters. Visibility and edit rights are separate FGA relations.</p>
+                <a href="rosters" class="btn btn-primary btn-sm">View Rosters</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <span class="bi bi-arrow-left-right-nav-menu" aria-hidden="true" style="filter:invert(1) brightness(0.4); margin-right:.4rem;"></span>
+                    Trades
+                </h5>
+                <p class="card-text text-muted">Propose and accept trades. Only the card owner may offer; only the recipient may accept.</p>
+                <a href="trades" class="btn btn-primary btn-sm">View Trades</a>
+            </div>
+        </div>
+    </div>
+</div>

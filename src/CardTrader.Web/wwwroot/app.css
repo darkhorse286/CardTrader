@@ -1,5 +1,17 @@
+:root {
+    --ct-primary: #1b6ec2;
+    --ct-accent: #3a0647;
+}
+
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+.ct-hero {
+    background: linear-gradient(135deg, #eef4fb 0%, #f5eeff 100%);
+    border-left: 4px solid var(--ct-primary);
+    border-radius: .375rem;
+    padding: 1.25rem 1.5rem;
 }
 
 a, .btn-link {

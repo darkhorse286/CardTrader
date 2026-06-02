@@ -160,4 +160,63 @@ public class CardInstanceServiceIntegrationTests(IntegrationFixture fixture)
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => Service(scope).RemoveFromRosterAsync(instanceId, stranger, RosterId.New()));
     }
+
+    // ── GetOwnedAsync ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetOwnedAsync_ReturnsOnlyInstancesForThatOwner()
+    {
+        using var scope = fixture.CreateScope();
+        var cardId = await SeedCardAsync(scope);
+        var alice = UserId.New();
+        var bob   = UserId.New();
+
+        var aliceId = CardInstanceId.New();
+        var bobId   = CardInstanceId.New();
+        await Service(scope).CreateAsync(aliceId, cardId, alice, printNumber: 10);
+        await Service(scope).CreateAsync(bobId,   cardId, bob,   printNumber: 11);
+
+        var aliceOwned = await Service(scope).GetOwnedAsync(alice);
+
+        Assert.Single(aliceOwned);
+        Assert.Equal(aliceId, aliceOwned[0].Id);
+    }
+
+    [Fact]
+    public async Task GetOwnedAsync_Empty_WhenNoInstances()
+    {
+        using var scope = fixture.CreateScope();
+        var nobody = UserId.New();
+
+        var result = await Service(scope).GetOwnedAsync(nobody);
+
+        Assert.Empty(result);
+    }
+
+    // ── MintAndAddToRosterAsync ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task MintAndAddToRoster_WritesOwnerAndRosterTuples()
+    {
+        using var scope = fixture.CreateScope();
+        var cardId     = await SeedCardAsync(scope);
+        var owner      = UserId.New();
+        var rosterOwner = UserId.New();
+        var rosterId   = RosterId.New();
+        var instanceId = CardInstanceId.New();
+        var viewer     = UserId.New();
+
+        await RosterSvc(scope).CreateAsync(rosterId, "Test", rosterOwner);
+        await RosterSvc(scope).ShareWithUserAsync(rosterId, rosterOwner, viewer);
+
+        await Service(scope).MintAndAddToRosterAsync(instanceId, cardId, owner, printNumber: 1, rosterId);
+
+        // Owner has full access
+        Assert.True(await CanManage(scope, owner, instanceId));
+        Assert.True(await CanView(scope, owner, instanceId));
+        // Roster viewer inherits can_view via tuple-to-userset
+        Assert.True(await CanView(scope, viewer, instanceId));
+        // Roster viewer cannot manage the instance (ownership stays with owner)
+        Assert.False(await CanManage(scope, viewer, instanceId));
+    }
 }

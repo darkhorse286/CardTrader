@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @inject TradeProposalService TradeSvc
 @inject CardService CardSvc
+@inject CardInstanceService CardInstanceSvc
 @inject ICurrentUser CurrentUser
 @inject IUserLookup UserLookup
 @inject IAdminService AdminSvc
@@ -104,6 +105,50 @@ else
             </div>
         </div>
 
+        <!-- ── Mint Card Instance ──────────────────────────────────────── -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">Mint Card Instance for User</div>
+                <div class="card-body">
+                    <p class="card-text text-muted small">
+                        Assign a card instance to a specific user. This writes an ownership tuple to
+                        the FGA store so the user can trade the card.
+                    </p>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Card <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="_mintCardId">
+                                <option value="">— select a card —</option>
+                                @foreach (var c in _allCards)
+                                {
+                                    <option value="@c.Id.Value">@c.Name (@c.PlayerPosition, @c.Rarity)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted">Print # <span class="text-danger">*</span></label>
+                            <input class="form-control" type="number" min="1"
+                                   max="@(_allCards.FirstOrDefault(c => c.Id.Value.ToString() == _mintCardId)?.PrintRun)"
+                                   placeholder="e.g. 42"
+                                   @bind="_mintPrintNumber" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">User Email <span class="text-danger">*</span></label>
+                            <input class="form-control" type="email" placeholder="user@example.com"
+                                   @bind="_mintUserEmail" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-auto">
+                            <button class="btn btn-primary"
+                                    @onclick="MintInstanceAsync"
+                                    disabled="@(!CanMintInstance || _saving)">
+                                Mint
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- ── Pending Trades ───────────────────────────────────────────── -->
         <div class="col-12">
             <div class="card">
@@ -160,8 +205,9 @@ else
 
     private List<TradeProposal> _pendingTrades = [];
     private Dictionary<UserId, string> _userEmails = new();
+    private List<Card> _allCards = [];
 
-    // Card form
+    // Add Card form
     private string _newName = "";
     private string _newPlayerName = "";
     private string _newSetName = "";
@@ -170,12 +216,22 @@ else
     private string _newTeamName = "";
     private int? _newPrintRun;
 
+    // Mint Instance form
+    private string _mintCardId = "";
+    private int? _mintPrintNumber;
+    private string _mintUserEmail = "";
+
     private bool CanAddCard =>
         !string.IsNullOrWhiteSpace(_newName) &&
         !string.IsNullOrWhiteSpace(_newPlayerName) &&
         !string.IsNullOrWhiteSpace(_newSetName) &&
         !string.IsNullOrWhiteSpace(_newRarity) &&
         _newPrintRun is >= 1;
+
+    private bool CanMintInstance =>
+        !string.IsNullOrWhiteSpace(_mintCardId) &&
+        _mintPrintNumber is >= 1 &&
+        !string.IsNullOrWhiteSpace(_mintUserEmail);
 
     protected override async Task OnInitializedAsync()
     {
@@ -184,7 +240,10 @@ else
             _currentUserId = await CurrentUser.GetUserIdAsync();
             _isAdmin = await AdminSvc.IsAdminAsync(_currentUserId);
             if (_isAdmin)
+            {
+                _allCards = (await CardSvc.GetAllAsync()).ToList();
                 await LoadTradesAsync();
+            }
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }
@@ -226,6 +285,25 @@ else
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to add cards."; }
         catch (ArgumentException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task MintInstanceAsync()
+    {
+        if (!CanMintInstance) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var ownerId = await UserLookup.FindByEmailAsync(_mintUserEmail.Trim());
+            if (ownerId is null) { _error = $"No account found for '{_mintUserEmail.Trim()}'."; return; }
+            var cardId = new CardId(Guid.Parse(_mintCardId));
+            await CardInstanceSvc.CreateAsync(CardInstanceId.New(), cardId, ownerId.Value, _mintPrintNumber!.Value);
+            _success = $"Card instance minted and assigned to {_mintUserEmail.Trim()}.";
+            _mintCardId = ""; _mintPrintNumber = null; _mintUserEmail = "";
+        }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
+        catch (KeyNotFoundException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
     }

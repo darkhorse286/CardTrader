@@ -139,4 +139,151 @@ public class RosterServiceIntegrationTests(IntegrationFixture fixture)
 
         Assert.False(await CanView(scope, anyone, id));
     }
+
+    // ── CanViewAsync / CanManageAsync ─────────────────────────────────────────
+
+    [Fact]
+    public async Task CanViewAsync_Owner_ReturnsTrue()
+    {
+        using var scope = fixture.CreateScope();
+        var id = RosterId.New();
+        var owner = UserId.New();
+
+        await Service(scope).CreateAsync(id, "Test", owner);
+
+        Assert.True(await Service(scope).CanViewAsync(id, owner));
+    }
+
+    [Fact]
+    public async Task CanViewAsync_Viewer_ReturnsTrue()
+    {
+        using var scope = fixture.CreateScope();
+        var id = RosterId.New();
+        var owner = UserId.New();
+        var viewer = UserId.New();
+
+        await Service(scope).CreateAsync(id, "Test", owner);
+        await Service(scope).ShareWithUserAsync(id, owner, viewer);
+
+        Assert.True(await Service(scope).CanViewAsync(id, viewer));
+    }
+
+    [Fact]
+    public async Task CanViewAsync_Stranger_ReturnsFalse()
+    {
+        using var scope = fixture.CreateScope();
+        var id = RosterId.New();
+        var stranger = UserId.New();
+
+        await Service(scope).CreateAsync(id, "Test", UserId.New());
+
+        Assert.False(await Service(scope).CanViewAsync(id, stranger));
+    }
+
+    [Fact]
+    public async Task CanManageAsync_Owner_ReturnsTrue()
+    {
+        using var scope = fixture.CreateScope();
+        var id = RosterId.New();
+        var owner = UserId.New();
+
+        await Service(scope).CreateAsync(id, "Test", owner);
+
+        Assert.True(await Service(scope).CanManageAsync(id, owner));
+    }
+
+    [Fact]
+    public async Task CanManageAsync_ViewerOnly_ReturnsFalse()
+    {
+        // Viewer gets can_view but NOT can_manage — share does not escalate to ownership.
+        using var scope = fixture.CreateScope();
+        var id = RosterId.New();
+        var owner = UserId.New();
+        var viewer = UserId.New();
+
+        await Service(scope).CreateAsync(id, "Test", owner);
+        await Service(scope).ShareWithUserAsync(id, owner, viewer);
+
+        Assert.False(await Service(scope).CanManageAsync(id, viewer));
+    }
+
+    // ── GetAllVisibleAsync ────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetAllVisibleAsync_IncludesOwnedRosters()
+    {
+        using var scope = fixture.CreateScope();
+        var id = RosterId.New();
+        var owner = UserId.New();
+
+        await Service(scope).CreateAsync(id, "Mine", owner);
+
+        var visible = await Service(scope).GetAllVisibleAsync(owner);
+
+        Assert.Contains(visible, r => r.Id == id);
+    }
+
+    [Fact]
+    public async Task GetAllVisibleAsync_IncludesSharedRosters()
+    {
+        using var scope = fixture.CreateScope();
+        var id = RosterId.New();
+        var owner = UserId.New();
+        var viewer = UserId.New();
+
+        await Service(scope).CreateAsync(id, "Shared", owner);
+        await Service(scope).ShareWithUserAsync(id, owner, viewer);
+
+        var visible = await Service(scope).GetAllVisibleAsync(viewer);
+
+        Assert.Contains(visible, r => r.Id == id);
+    }
+
+    [Fact]
+    public async Task GetAllVisibleAsync_IncludesPublicRosters()
+    {
+        using var scope = fixture.CreateScope();
+        var id = RosterId.New();
+        var owner = UserId.New();
+        var anyone = UserId.New();
+
+        await Service(scope).CreateAsync(id, "Public", owner);
+        await Service(scope).MakePublicAsync(id, owner);
+
+        var visible = await Service(scope).GetAllVisibleAsync(anyone);
+
+        Assert.Contains(visible, r => r.Id == id);
+    }
+
+    [Fact]
+    public async Task GetAllVisibleAsync_ExcludesPrivateRosterOfOtherUser()
+    {
+        using var scope = fixture.CreateScope();
+        var id = RosterId.New();
+        var stranger = UserId.New();
+
+        await Service(scope).CreateAsync(id, "Private", UserId.New());
+
+        var visible = await Service(scope).GetAllVisibleAsync(stranger);
+
+        Assert.DoesNotContain(visible, r => r.Id == id);
+    }
+
+    [Fact]
+    public async Task GetAllVisibleAsync_AfterRevoke_NoLongerIncludes()
+    {
+        using var scope = fixture.CreateScope();
+        var id = RosterId.New();
+        var owner = UserId.New();
+        var viewer = UserId.New();
+
+        await Service(scope).CreateAsync(id, "Revoked", owner);
+        await Service(scope).ShareWithUserAsync(id, owner, viewer);
+        Assert.Contains(await Service(scope).GetAllVisibleAsync(viewer), r => r.Id == id);
+
+        await Service(scope).UnshareAsync(id, owner, viewer);
+
+        var visible = await Service(scope).GetAllVisibleAsync(viewer);
+        Assert.DoesNotContain(visible, r => r.Id == id);
+    }
 }

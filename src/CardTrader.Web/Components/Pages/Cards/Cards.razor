@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 @inject CardService CardSvc
+@inject CardInstanceService CardInstanceSvc
+@inject ICurrentUser CurrentUser
 
 <PageTitle>Card Catalogue</PageTitle>
 
@@ -13,6 +15,63 @@
 }
 else
 {
+    <!-- My Instances -->
+    @if (_ownedInstances.Count > 0)
+    {
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">My Card Instances</span>
+                <span class="badge bg-secondary">@_ownedInstances.Count</span>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Player</th>
+                            <th>Position</th>
+                            <th>Rarity</th>
+                            <th>Print #</th>
+                            <th>Roster</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var inst in _ownedInstances)
+                        {
+                            var card = _cardLookup.GetValueOrDefault(inst.CardId);
+                            <tr>
+                                <td>@(card?.PlayerName ?? "—")</td>
+                                <td>
+                                    @if (card?.PlayerPosition is { } pos)
+                                    {
+                                        <span class="badge @PositionClass(pos)">@pos</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (card?.Rarity is { } r)
+                                    {
+                                        <span class="badge @RarityClass(r)">@r</span>
+                                    }
+                                </td>
+                                <td>@inst.PrintNumber / @(card?.PrintRun.ToString("N0") ?? "?")</td>
+                                <td>
+                                    @if (inst.RosterId is { } rid)
+                                    {
+                                        <a href="/rosters/@rid.Value">on roster</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- Catalogue -->
     <div class="d-flex gap-2 mb-3 flex-wrap">
         @foreach (var pos in new[] { "", "Attack", "Midfield", "Defense", "Goalie" })
         {
@@ -81,6 +140,8 @@ else
 @code {
     private bool _loading = true;
     private IReadOnlyList<Card> _cards = [];
+    private IReadOnlyList<CardInstance> _ownedInstances = [];
+    private Dictionary<CardId, Card> _cardLookup = [];
     private string _filter = "";
 
     private IReadOnlyList<Card> FilteredCards =>
@@ -91,16 +152,23 @@ else
     protected override async Task OnInitializedAsync()
     {
         _cards = await CardSvc.GetAllAsync();
+        _cardLookup = _cards.ToDictionary(c => c.Id);
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            _ownedInstances = await CardInstanceSvc.GetOwnedAsync(userId);
+        }
+        catch { /* unauthenticated — instances stay empty */ }
         _loading = false;
     }
 
     private static string PositionClass(string pos) => pos switch
     {
-        "Attack"  => "bg-danger",
+        "Attack"   => "bg-danger",
         "Midfield" => "bg-warning text-dark",
-        "Defense" => "bg-primary",
-        "Goalie"  => "bg-success",
-        _         => "bg-secondary",
+        "Defense"  => "bg-primary",
+        "Goalie"   => "bg-success",
+        _          => "bg-secondary",
     };
 
     private static string RarityClass(string rarity) => rarity switch
