@@ -12,13 +12,15 @@ internal sealed class CardInstanceTupleWriter(IFgaWriteClient fga) : ITupleWrite
     public bool CanHandle(IDomainEvent @event) => @event is
         CardInstanceCreated or
         CardInstanceAddedToRoster or
-        CardInstanceRemovedFromRoster;
+        CardInstanceRemovedFromRoster or
+        CardInstanceOwnershipTransferred;
 
     public Task HandleAsync(IDomainEvent @event, CancellationToken ct = default) => @event switch
     {
-        CardInstanceCreated e          => HandleAsync(e, ct),
-        CardInstanceAddedToRoster e    => HandleAsync(e, ct),
-        CardInstanceRemovedFromRoster e => HandleAsync(e, ct),
+        CardInstanceCreated e               => HandleAsync(e, ct),
+        CardInstanceAddedToRoster e         => HandleAsync(e, ct),
+        CardInstanceRemovedFromRoster e     => HandleAsync(e, ct),
+        CardInstanceOwnershipTransferred e  => HandleAsync(e, ct),
         _ => Task.CompletedTask,
     };
 
@@ -33,6 +35,13 @@ internal sealed class CardInstanceTupleWriter(IFgaWriteClient fga) : ITupleWrite
     private Task HandleAsync(CardInstanceRemovedFromRoster e, CancellationToken ct) =>
         fga.DeleteAsync([D($"{FgaTypes.Roster}:{e.RosterId}", FgaRelations.Roster,
             $"{FgaTypes.CardInstance}:{e.Id}")], ct);
+
+    private async Task HandleAsync(CardInstanceOwnershipTransferred e, CancellationToken ct)
+    {
+        var obj = $"{FgaTypes.CardInstance}:{e.Id}";
+        await fga.DeleteAsync([D($"user:{e.FromOwner}", FgaRelations.Owner, obj)], ct);
+        await fga.WriteAsync([T($"user:{e.ToOwner}", FgaRelations.Owner, obj)], ct);
+    }
 
     private static ClientTupleKey T(string user, string relation, string obj) =>
         new() { User = user, Relation = relation, Object = obj };

@@ -89,20 +89,20 @@ public static class DemoDataSeeder
         var jim  = Pick(allCards, "Defense",  "Cheddar");
 
         // Alice: one standalone instance + two on a roster
-        await cardInstanceSvc.CreateAsync(CardInstanceId.New(), sal.Id, aliceId, 1);
+        var aliceSal = await cardInstanceSvc.CreateAsync(CardInstanceId.New(), sal.Id, aliceId, 1);
         var aliceRoster = await rosterSvc.CreateAsync(RosterId.New(), "Alice's All-Stars", aliceId);
         await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), max.Id, aliceId, 42, aliceRoster.Id);
         await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), gus.Id, aliceId,  7, aliceRoster.Id);
 
         // Bob: three cards on a roster + make it public
         var bobRoster = await rosterSvc.CreateAsync(RosterId.New(), "Bob's Biscuits", bobId);
-        await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), pete.Id, bobId, 1, bobRoster.Id);
+        var bobPete = await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), pete.Id, bobId, 1, bobRoster.Id);
         await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), walt.Id, bobId, 1, bobRoster.Id);
         await cardInstanceSvc.MintAndAddToRosterAsync(CardInstanceId.New(), jim.Id,  bobId, 1, bobRoster.Id);
         await rosterSvc.MakePublicAsync(bobRoster.Id, bobId);
 
-        // Pending trade: alice proposes to bob
-        await tradeSvc.CreateAsync(TradeProposalId.New(), aliceId, bobId);
+        // Pending trade: alice offers Sal for bob's Pete
+        await tradeSvc.CreateAsync(TradeProposalId.New(), aliceId, bobId, aliceSal.Id, bobPete.Id);
 
         // Delegation: bob delegates to admin (activated — demonstrates parent-managed accounts)
         var delegation = await delegationSvc.CreateAsync(DelegationId.New(), bobId, adminId);

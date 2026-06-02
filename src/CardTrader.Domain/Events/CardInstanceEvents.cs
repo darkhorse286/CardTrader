@@ -11,3 +11,6 @@ public sealed record CardInstanceAddedToRoster(
 
 public sealed record CardInstanceRemovedFromRoster(
     CardInstanceId Id, RosterId RosterId) : IDomainEvent;
+
+public sealed record CardInstanceOwnershipTransferred(
+    CardInstanceId Id, UserId FromOwner, UserId ToOwner) : IDomainEvent;

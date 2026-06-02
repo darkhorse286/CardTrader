@@ -29,6 +29,8 @@ public class EndToEndScenarioIntegrationTests(IntegrationFixture fixture)
         scope.ServiceProvider.GetRequiredService<IAuthorizationService>();
     private ITradeProposalRepository TradeRepo(IServiceScope scope) =>
         scope.ServiceProvider.GetRequiredService<ITradeProposalRepository>();
+    private ICardInstanceRepository InstanceRepo(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<ICardInstanceRepository>();
 
     private async Task<CardId> SeedCardAsync(IServiceScope scope)
     {
@@ -39,6 +41,17 @@ public class EndToEndScenarioIntegrationTests(IntegrationFixture fixture)
         return cardId;
     }
 
+    private async Task<(CardInstanceId AliceCard, CardInstanceId BobCard)>
+        SeedTradeInstancesAsync(IServiceScope scope, UserId alice, UserId bob)
+    {
+        var cardId = await SeedCardAsync(scope);
+        var aCard = CardInstanceId.New();
+        var bCard = CardInstanceId.New();
+        await InstanceSvc(scope).CreateAsync(aCard, cardId, alice, 1);
+        await InstanceSvc(scope).CreateAsync(bCard, cardId, bob, 2);
+        return (aCard, bCard);
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Bob's public roster is visible to alice (can_view) but alice cannot manage it
     // ─────────────────────────────────────────────────────────────────────────
@@ -47,8 +60,7 @@ public class EndToEndScenarioIntegrationTests(IntegrationFixture fixture)
     public async Task BobPublicRoster_AliceCanView_CannotManage()
     {
         using var scope = fixture.CreateScope();
-        var alice = UserId.New();
-        var bob   = UserId.New();
+        var alice = UserId.New(); var bob = UserId.New();
         var bobRosterId = RosterId.New();
 
         await RosterSvc(scope).CreateAsync(bobRosterId, "Bob's Biscuits", bob);
@@ -64,8 +76,7 @@ public class EndToEndScenarioIntegrationTests(IntegrationFixture fixture)
     public async Task BobPublicRoster_AppearsInAliceVisibleList()
     {
         using var scope = fixture.CreateScope();
-        var alice = UserId.New();
-        var bob   = UserId.New();
+        var alice = UserId.New(); var bob = UserId.New();
         var bobRosterId = RosterId.New();
 
         await RosterSvc(scope).CreateAsync(bobRosterId, "Bob's Biscuits", bob);
@@ -80,8 +91,7 @@ public class EndToEndScenarioIntegrationTests(IntegrationFixture fixture)
     public async Task BobPublicRoster_NotInAliceOwnedList()
     {
         using var scope = fixture.CreateScope();
-        var alice = UserId.New();
-        var bob   = UserId.New();
+        var alice = UserId.New(); var bob = UserId.New();
         var bobRosterId = RosterId.New();
 
         await RosterSvc(scope).CreateAsync(bobRosterId, "Bob's Biscuits", bob);
@@ -100,11 +110,11 @@ public class EndToEndScenarioIntegrationTests(IntegrationFixture fixture)
     public async Task Alice_ProposesToBob_BobCanAcceptAliceCannot()
     {
         using var scope = fixture.CreateScope();
-        var alice = UserId.New();
-        var bob   = UserId.New();
+        var alice = UserId.New(); var bob = UserId.New();
+        var (aCard, bCard) = await SeedTradeInstancesAsync(scope, alice, bob);
         var tradeId = TradeProposalId.New();
 
-        await TradeSvc(scope).CreateAsync(tradeId, alice, bob);
+        await TradeSvc(scope).CreateAsync(tradeId, alice, bob, aCard, bCard);
 
         Assert.True(await Authz(scope).CheckAsync(
             $"{FgaTypes.User}:{bob}", FgaRelations.CanAccept, $"{FgaTypes.TradeProposal}:{tradeId}"));
@@ -116,11 +126,11 @@ public class EndToEndScenarioIntegrationTests(IntegrationFixture fixture)
     public async Task Alice_ProposesToBob_AliceCanCancelBobCannot()
     {
         using var scope = fixture.CreateScope();
-        var alice = UserId.New();
-        var bob   = UserId.New();
+        var alice = UserId.New(); var bob = UserId.New();
+        var (aCard, bCard) = await SeedTradeInstancesAsync(scope, alice, bob);
         var tradeId = TradeProposalId.New();
 
-        await TradeSvc(scope).CreateAsync(tradeId, alice, bob);
+        await TradeSvc(scope).CreateAsync(tradeId, alice, bob, aCard, bCard);
 
         Assert.True(await Authz(scope).CheckAsync(
             $"{FgaTypes.User}:{alice}", FgaRelations.CanCancel, $"{FgaTypes.TradeProposal}:{tradeId}"));
@@ -132,11 +142,11 @@ public class EndToEndScenarioIntegrationTests(IntegrationFixture fixture)
     public async Task Bob_AcceptsTrade_StatusBecomesAccepted()
     {
         using var scope = fixture.CreateScope();
-        var alice = UserId.New();
-        var bob   = UserId.New();
+        var alice = UserId.New(); var bob = UserId.New();
+        var (aCard, bCard) = await SeedTradeInstancesAsync(scope, alice, bob);
         var tradeId = TradeProposalId.New();
 
-        await TradeSvc(scope).CreateAsync(tradeId, alice, bob);
+        await TradeSvc(scope).CreateAsync(tradeId, alice, bob, aCard, bCard);
         await TradeSvc(scope).AcceptAsync(tradeId, bob);
 
         var stored = await TradeRepo(scope).GetByIdAsync(tradeId);
@@ -145,15 +155,33 @@ public class EndToEndScenarioIntegrationTests(IntegrationFixture fixture)
     }
 
     [Fact]
-    public async Task Bob_AcceptTrade_AliceAttemptThrows()
+    public async Task Bob_AcceptsTrade_OwnershipSwaps()
     {
-        // Alice cannot accept her own outgoing proposal.
+        // After acceptance: alice now owns bCard and bob now owns aCard.
         using var scope = fixture.CreateScope();
-        var alice = UserId.New();
-        var bob   = UserId.New();
+        var alice = UserId.New(); var bob = UserId.New();
+        var (aCard, bCard) = await SeedTradeInstancesAsync(scope, alice, bob);
         var tradeId = TradeProposalId.New();
 
-        await TradeSvc(scope).CreateAsync(tradeId, alice, bob);
+        await TradeSvc(scope).CreateAsync(tradeId, alice, bob, aCard, bCard);
+        await TradeSvc(scope).AcceptAsync(tradeId, bob);
+
+        var aliceInstance = await InstanceRepo(scope).GetByIdAsync(aCard);
+        var bobInstance   = await InstanceRepo(scope).GetByIdAsync(bCard);
+        Assert.NotNull(aliceInstance); Assert.NotNull(bobInstance);
+        Assert.Equal(bob,   aliceInstance.OwnerId); // alice's card now belongs to bob
+        Assert.Equal(alice, bobInstance.OwnerId);   // bob's card now belongs to alice
+    }
+
+    [Fact]
+    public async Task Bob_AcceptTrade_AliceAttemptThrows()
+    {
+        using var scope = fixture.CreateScope();
+        var alice = UserId.New(); var bob = UserId.New();
+        var (aCard, bCard) = await SeedTradeInstancesAsync(scope, alice, bob);
+        var tradeId = TradeProposalId.New();
+
+        await TradeSvc(scope).CreateAsync(tradeId, alice, bob, aCard, bCard);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => TradeSvc(scope).AcceptAsync(tradeId, alice));

@@ -7,7 +7,7 @@ namespace CardTrader.Domain.Entities;
 public sealed class CardInstance : Entity<CardInstanceId>
 {
     public CardId CardId { get; private init; }
-    public UserId OwnerId { get; private init; }
+    public UserId OwnerId { get; private set; }
     public int PrintNumber { get; private init; }
 
     private CardInstance() { }
@@ -34,5 +34,18 @@ public sealed class CardInstance : Entity<CardInstanceId>
     {
         RosterId = null;
         Raise(new CardInstanceRemovedFromRoster(Id, rosterId));
+    }
+
+    public void TransferOwnership(UserId newOwner)
+    {
+        var fromOwner = OwnerId;
+        // Evict from roster before changing owner so the roster tuple can be cleaned up
+        if (RosterId is { } rosterId)
+        {
+            RosterId = null;
+            Raise(new CardInstanceRemovedFromRoster(Id, rosterId));
+        }
+        OwnerId = newOwner;
+        Raise(new CardInstanceOwnershipTransferred(Id, fromOwner, newOwner));
     }
 }

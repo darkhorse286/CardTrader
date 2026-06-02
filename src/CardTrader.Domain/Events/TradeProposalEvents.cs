@@ -4,7 +4,9 @@ using CardTrader.Domain.ValueObjects;
 namespace CardTrader.Domain.Events;
 
 public sealed record TradeProposalCreated(
-    TradeProposalId Id, UserId InitiatorId, UserId RecipientId) : IDomainEvent;
+    TradeProposalId Id,
+    UserId InitiatorId, UserId RecipientId,
+    CardInstanceId InitiatorInstanceId, CardInstanceId RecipientInstanceId) : IDomainEvent;
 
 public sealed record TradeProposalFacilitatorAssigned(
     TradeProposalId Id, UserId FacilitatorId) : IDomainEvent;

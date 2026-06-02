@@ -9,6 +9,7 @@ namespace CardTrader.Application.Services;
 
 public sealed class TradeProposalService(
     ITradeProposalRepository proposals,
+    ICardInstanceRepository instances,
     IAuthorizationService authz,
     IAdminService admin,
     IDomainEventDispatcher dispatcher)
@@ -16,7 +17,8 @@ public sealed class TradeProposalService(
     public Task<IReadOnlyList<TradeProposal>> GetInvolvingUserAsync(UserId userId, CancellationToken ct = default)
         => proposals.GetInvolvingUserAsync(userId, ct);
 
-    public async Task<IReadOnlyList<TradeProposal>> GetAllPendingAsync(UserId requestingUserId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TradeProposal>> GetAllPendingAsync(
+        UserId requestingUserId, CancellationToken ct = default)
     {
         if (!await admin.IsAdminAsync(requestingUserId, ct))
             throw new UnauthorizedAccessException("Only admins can view all pending trades.");
@@ -24,9 +26,24 @@ public sealed class TradeProposalService(
     }
 
     public async Task<TradeProposal> CreateAsync(
-        TradeProposalId id, UserId initiatorId, UserId recipientId, CancellationToken ct = default)
+        TradeProposalId id,
+        UserId initiatorId, UserId recipientId,
+        CardInstanceId initiatorInstanceId, CardInstanceId recipientInstanceId,
+        CancellationToken ct = default)
     {
-        var proposal = TradeProposal.Create(id, initiatorId, recipientId);
+        // Verify each party owns the card they're offering
+        await CheckOrThrowAsync(
+            $"{FgaTypes.User}:{initiatorId}", FgaRelations.CanTrade,
+            $"{FgaTypes.CardInstance}:{initiatorInstanceId}", ct,
+            "You don't own the card you're offering.");
+
+        await CheckOrThrowAsync(
+            $"{FgaTypes.User}:{recipientId}", FgaRelations.CanTrade,
+            $"{FgaTypes.CardInstance}:{recipientInstanceId}", ct,
+            "The recipient doesn't own the card you're requesting.");
+
+        var proposal = TradeProposal.Create(id, initiatorId, recipientId,
+            initiatorInstanceId, recipientInstanceId);
         await proposals.AddAsync(proposal, ct);
         await dispatcher.DispatchAsync(proposal.DomainEvents, ct);
         proposal.ClearDomainEvents();
@@ -53,6 +70,9 @@ public sealed class TradeProposalService(
         await proposals.UpdateAsync(proposal, ct);
         await dispatcher.DispatchAsync(proposal.DomainEvents, ct);
         proposal.ClearDomainEvents();
+
+        // Settle: swap ownership of both card instances
+        await SwapOwnershipAsync(proposal, ct);
     }
 
     public async Task CancelAsync(
@@ -68,6 +88,25 @@ public sealed class TradeProposalService(
         proposal.ClearDomainEvents();
     }
 
+    private async Task SwapOwnershipAsync(TradeProposal proposal, CancellationToken ct)
+    {
+        var initiatorCard = await instances.GetByIdAsync(proposal.InitiatorInstanceId, ct)
+            ?? throw new InvalidOperationException("Initiator's card instance not found.");
+        var recipientCard = await instances.GetByIdAsync(proposal.RecipientInstanceId, ct)
+            ?? throw new InvalidOperationException("Recipient's card instance not found.");
+
+        // Initiator's card goes to the recipient, and vice versa
+        initiatorCard.TransferOwnership(proposal.RecipientId);
+        recipientCard.TransferOwnership(proposal.InitiatorId);
+
+        await instances.UpdateAsync(initiatorCard, ct);
+        await instances.UpdateAsync(recipientCard, ct);
+
+        await dispatcher.DispatchAsync([.. initiatorCard.DomainEvents, .. recipientCard.DomainEvents], ct);
+        initiatorCard.ClearDomainEvents();
+        recipientCard.ClearDomainEvents();
+    }
+
     private async Task<TradeProposal> GetOrThrowAsync(TradeProposalId id, CancellationToken ct)
         => await proposals.GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException($"TradeProposal {id} not found.");
@@ -76,9 +115,11 @@ public sealed class TradeProposalService(
         => CheckOrThrowAsync(
             $"{FgaTypes.User}:{userId}", relation, $"{FgaTypes.TradeProposal}:{objectId}", ct);
 
-    private async Task CheckOrThrowAsync(string user, string relation, string @object, CancellationToken ct)
+    private async Task CheckOrThrowAsync(
+        string user, string relation, string @object, CancellationToken ct,
+        string? message = null)
     {
         if (!await authz.CheckAsync(user, relation, @object, ct))
-            throw new UnauthorizedAccessException();
+            throw new UnauthorizedAccessException(message);
     }
 }
