@@ -249,6 +249,8 @@
     private IReadOnlyList<CardInstance> _myInstances    = [];
     private IReadOnlyList<CardInstance> _theirInstances = [];
     private Dictionary<CardId, Card> _cardLookup = new();
+    // Covers every instance referenced by any proposal, fetched as needed
+    private Dictionary<CardInstanceId, CardInstance> _instanceLookup = new();
 
     private bool CanPropose =>
         _recipientId is not null &&
@@ -281,6 +283,18 @@
         {
             if (!_userEmails.ContainsKey(id))
                 _userEmails[id] = await UserLookup.GetEmailByIdAsync(id) ?? id.Value.ToString()[..8] + "…";
+        }
+
+        // Build instance lookup: seed from owned, then fetch any referenced instances not yet known
+        _instanceLookup = _myInstances.ToDictionary(i => i.Id);
+        var referenced = all
+            .SelectMany(p => new[] { p.InitiatorInstanceId, p.RecipientInstanceId })
+            .Distinct()
+            .Where(id => !_instanceLookup.ContainsKey(id));
+        foreach (var id in referenced)
+        {
+            var inst = await CardInstanceSvc.GetByIdAsync(id);
+            if (inst is not null) _instanceLookup[id] = inst;
         }
     }
 
@@ -386,10 +400,7 @@
 
     private string DescribeInstance(CardInstanceId instanceId)
     {
-        // Search known instances (mine + theirs) for this ID
-        var inst = _myInstances.FirstOrDefault(i => i.Id == instanceId)
-                ?? _theirInstances.FirstOrDefault(i => i.Id == instanceId);
-        if (inst is null) return "—";
+        if (!_instanceLookup.TryGetValue(instanceId, out var inst)) return "—";
         var card = _cardLookup.GetValueOrDefault(inst.CardId);
         return card is not null
             ? $"{card.PlayerName} ({card.Rarity}, #{inst.PrintNumber})"

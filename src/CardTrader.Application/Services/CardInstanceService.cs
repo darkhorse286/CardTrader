@@ -42,6 +42,9 @@ public sealed class CardInstanceService(
         return instance;
     }
 
+    public Task<CardInstance?> GetByIdAsync(CardInstanceId id, CancellationToken ct = default)
+        => instances.GetByIdAsync(id, ct);
+
     public Task<IReadOnlyList<CardInstance>> GetByRosterAsync(
         RosterId rosterId, CancellationToken ct = default)
         => instances.GetByRosterAsync(rosterId, ct);
