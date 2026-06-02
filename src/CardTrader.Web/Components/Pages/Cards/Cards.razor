@@ -74,7 +74,14 @@ else
                                 <td>
                                     @if (inst.RosterId is { } rid)
                                     {
-                                        <a href="/rosters/@rid.Value">on roster</a>
+                                        <span class="d-flex gap-2 align-items-center">
+                                            <a href="/rosters/@rid.Value" class="text-nowrap">on roster</a>
+                                            <button class="btn btn-sm btn-outline-danger"
+                                                    @onclick="() => RemoveFromRosterAsync(inst.Id, rid)"
+                                                    disabled="@_saving">
+                                                Remove
+                                            </button>
+                                        </span>
                                     }
                                     else if (_ownedRosters.Count > 0)
                                     {
@@ -345,7 +352,23 @@ else
         _loading = false;
     }
 
-    // ── Add to roster (from collection table) ─────────────────────────────────
+    // ── Roster management (from collection table) ─────────────────────────────
+
+    private async Task RemoveFromRosterAsync(CardInstanceId instanceId, RosterId rosterId)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CardInstanceSvc.RemoveFromRosterAsync(instanceId, userId, rosterId);
+            _success = "Card removed from roster.";
+            _ownedInstances = await CardInstanceSvc.GetOwnedAsync(userId);
+        }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to manage this card."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
 
     private async Task AddToRosterAsync(CardInstanceId instanceId, RosterId rosterId)
     {

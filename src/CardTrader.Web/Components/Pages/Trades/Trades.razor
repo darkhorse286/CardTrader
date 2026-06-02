@@ -113,7 +113,7 @@
         </div>
     </div>
 
-    <!-- Incoming proposals -->
+    <!-- Incoming proposals (pending only) -->
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -127,7 +127,7 @@
                 }
                 else if (_incoming.Count == 0)
                 {
-                    <p class="text-muted p-3 mb-0">No incoming proposals.</p>
+                    <p class="text-muted p-3 mb-0">No pending incoming proposals.</p>
                 }
                 else
                 {
@@ -137,7 +137,6 @@
                                 <th>From</th>
                                 <th>They offer</th>
                                 <th>You give</th>
-                                <th>Status</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -148,21 +147,17 @@
                                     <td>@DisplayEmail(p.InitiatorId)</td>
                                     <td>@DescribeInstance(p.InitiatorInstanceId)</td>
                                     <td>@DescribeInstance(p.RecipientInstanceId)</td>
-                                    <td><span class="badge @StatusClass(p.Status)">@p.Status</span></td>
                                     <td class="text-end">
-                                        @if (p.Status == TradeProposalStatus.Pending)
-                                        {
-                                            <button class="btn btn-success btn-sm me-1"
-                                                    @onclick="() => AcceptAsync(p.Id)"
-                                                    disabled="@_saving">
-                                                Accept
-                                            </button>
-                                            <button class="btn btn-outline-danger btn-sm"
-                                                    @onclick="() => DeclineAsync(p.Id)"
-                                                    disabled="@_saving">
-                                                Decline
-                                            </button>
-                                        }
+                                        <button class="btn btn-success btn-sm me-1"
+                                                @onclick="() => AcceptAsync(p.Id)"
+                                                disabled="@_saving">
+                                            Accept
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm"
+                                                @onclick="() => DeclineAsync(p.Id)"
+                                                disabled="@_saving">
+                                            Decline
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -173,7 +168,7 @@
         </div>
     </div>
 
-    <!-- Outgoing proposals -->
+    <!-- Outgoing proposals (pending only) -->
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -187,7 +182,7 @@
                 }
                 else if (_outgoing.Count == 0)
                 {
-                    <p class="text-muted p-3 mb-0">No outgoing proposals.</p>
+                    <p class="text-muted p-3 mb-0">No pending outgoing proposals.</p>
                 }
                 else
                 {
@@ -197,7 +192,6 @@
                                 <th>To</th>
                                 <th>You offer</th>
                                 <th>You get</th>
-                                <th>Status</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -208,16 +202,12 @@
                                     <td>@DisplayEmail(p.RecipientId)</td>
                                     <td>@DescribeInstance(p.InitiatorInstanceId)</td>
                                     <td>@DescribeInstance(p.RecipientInstanceId)</td>
-                                    <td><span class="badge @StatusClass(p.Status)">@p.Status</span></td>
                                     <td class="text-end">
-                                        @if (p.Status == TradeProposalStatus.Pending)
-                                        {
-                                            <button class="btn btn-outline-danger btn-sm"
-                                                    @onclick="() => CancelAsync(p.Id)"
-                                                    disabled="@_saving">
-                                                Cancel
-                                            </button>
-                                        }
+                                        <button class="btn btn-outline-danger btn-sm"
+                                                @onclick="() => CancelAsync(p.Id)"
+                                                disabled="@_saving">
+                                            Cancel
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -227,6 +217,48 @@
             </div>
         </div>
     </div>
+
+    <!-- Trade history (settled) -->
+    @if (_history.Count > 0)
+    {
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="text-muted">History</span>
+                    <span class="badge bg-secondary">@_history.Count</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0 text-muted small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Direction</th>
+                                <th>Counterparty</th>
+                                <th>You offered</th>
+                                <th>You received</th>
+                                <th>Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in _history)
+                            {
+                                var isInitiator = p.InitiatorId == _currentUserId;
+                                var counterparty = isInitiator ? p.RecipientId : p.InitiatorId;
+                                var offered  = isInitiator ? p.InitiatorInstanceId : p.RecipientInstanceId;
+                                var received = isInitiator ? p.RecipientInstanceId : p.InitiatorInstanceId;
+                                <tr>
+                                    <td>@(isInitiator ? "Outgoing" : "Incoming")</td>
+                                    <td>@DisplayEmail(counterparty)</td>
+                                    <td>@DescribeInstance(offered)</td>
+                                    <td>@DescribeInstance(received)</td>
+                                    <td><span class="badge @StatusClass(p.Status)">@p.Status</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -245,6 +277,7 @@
     // Data
     private List<TradeProposal> _incoming = [];
     private List<TradeProposal> _outgoing = [];
+    private List<TradeProposal> _history  = [];
     private Dictionary<UserId, string> _userEmails = new();
     private IReadOnlyList<CardInstance> _myInstances    = [];
     private IReadOnlyList<CardInstance> _theirInstances = [];
@@ -275,8 +308,11 @@
     private async Task LoadProposalsAsync()
     {
         var all = await TradeSvc.GetInvolvingUserAsync(_currentUserId);
-        _incoming = all.Where(p => p.RecipientId == _currentUserId).ToList();
-        _outgoing = all.Where(p => p.InitiatorId == _currentUserId).ToList();
+        _incoming = all.Where(p => p.RecipientId == _currentUserId && p.Status == TradeProposalStatus.Pending).ToList();
+        _outgoing = all.Where(p => p.InitiatorId == _currentUserId && p.Status == TradeProposalStatus.Pending).ToList();
+        _history  = all.Where(p => p.Status != TradeProposalStatus.Pending)
+                       .OrderByDescending(p => p.Id.Value)
+                       .ToList();
 
         // Load emails for all participants
         foreach (var id in all.SelectMany(p => new[] { p.InitiatorId, p.RecipientId }).Distinct())
