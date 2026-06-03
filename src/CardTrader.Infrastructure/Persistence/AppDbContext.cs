@@ -10,6 +10,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Roster> Rosters => Set<Roster>();
     public DbSet<TradeProposal> TradeProposals => Set<TradeProposal>();
     public DbSet<Delegation> Delegations => Set<Delegation>();
+    internal DbSet<PackClaim> PackClaims => Set<PackClaim>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
         => modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

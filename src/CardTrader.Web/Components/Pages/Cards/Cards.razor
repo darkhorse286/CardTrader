@@ -3,7 +3,10 @@
 @attribute [Authorize]
 @inject CardService CardSvc
 @inject CardInstanceService CardInstanceSvc
+@inject RosterService RosterSvc
+@inject PackService PackSvc
 @inject ICurrentUser CurrentUser
+@inject AuthenticationStateProvider AuthState
 
 <PageTitle>Card Catalogue</PageTitle>
 
@@ -15,6 +18,21 @@
 }
 else
 {
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger alert-dismissible">
+            @_error
+            <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+        </div>
+    }
+    @if (_success is not null)
+    {
+        <div class="alert alert-success alert-dismissible">
+            @_success
+            <button type="button" class="btn-close" @onclick="() => _success = null"></button>
+        </div>
+    }
+
     <!-- My Instances -->
     @if (_ownedInstances.Count > 0)
     {
@@ -56,7 +74,37 @@ else
                                 <td>
                                     @if (inst.RosterId is { } rid)
                                     {
-                                        <a href="/rosters/@rid.Value">on roster</a>
+                                        <span class="d-flex gap-2 align-items-center">
+                                            <a href="/rosters/@rid.Value" class="text-nowrap">on roster</a>
+                                            <button class="btn btn-sm btn-outline-danger"
+                                                    @onclick="() => RemoveFromRosterAsync(inst.Id, rid)"
+                                                    disabled="@_saving">
+                                                Remove
+                                            </button>
+                                        </span>
+                                    }
+                                    else if (_ownedRosters.Count > 0)
+                                    {
+                                        <div class="d-flex gap-1 align-items-center">
+                                            <select class="form-select form-select-sm"
+                                                    style="min-width: 130px"
+                                                    value="@(_pendingRoster.TryGetValue(inst.Id, out var v) ? v : string.Empty)"
+                                                    @onchange="e => _pendingRoster[inst.Id] = e.Value?.ToString() ?? string.Empty">
+                                                <option value="">+ roster</option>
+                                                @foreach (var roster in _ownedRosters)
+                                                {
+                                                    <option value="@roster.Id.Value">@roster.Name</option>
+                                                }
+                                            </select>
+                                            @if (_pendingRoster.TryGetValue(inst.Id, out var sel) && !string.IsNullOrEmpty(sel))
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary"
+                                                        @onclick="() => AddToRosterAsync(inst.Id, new RosterId(Guid.Parse(sel)))"
+                                                        disabled="@_saving">
+                                                    Add
+                                                </button>
+                                            }
+                                        </div>
                                     }
                                     else
                                     {
@@ -67,6 +115,121 @@ else
                         }
                     </tbody>
                 </table>
+            </div>
+        </div>
+    }
+
+    <!-- Admin: mint panel -->
+    @if (_isAdmin && _mintCard is not null)
+    {
+        <div class="card mb-4 border-primary">
+            <div class="card-header bg-primary bg-opacity-10 d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">Mint — @_mintCard.PlayerName</span>
+                <button type="button" class="btn-close" @onclick="DismissMint"></button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    @_mintCard.Rarity · @(_mintCard.PlayerPosition ?? "—") · @(_mintCard.TeamName ?? "—") ·
+                    Print run: @_mintCard.PrintRun.ToString("N0")
+                </p>
+                <div class="d-flex gap-3 align-items-end flex-wrap">
+                    <div>
+                        <label class="form-label small text-muted mb-1">
+                            Print Number <span class="text-muted">(1 – @_mintCard.PrintRun.ToString("N0"))</span>
+                        </label>
+                        <input class="form-control"
+                               type="number"
+                               min="1"
+                               max="@_mintCard.PrintRun"
+                               placeholder="e.g. 42"
+                               style="width: 130px"
+                               @bind="_mintPrintNumber"
+                               @bind:event="oninput" />
+                    </div>
+                    <div>
+                        <button class="btn btn-primary"
+                                @onclick="MintAsync"
+                                disabled="@(!CanMint || _saving)">
+                            @(_saving ? "Minting…" : "Mint")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Non-admin: Get a Pack -->
+    @if (!_isAdmin)
+    {
+        <div class="card mb-4">
+            <div class="card-body d-flex align-items-center gap-4 flex-wrap">
+                <div>
+                    <button class="btn btn-success btn-lg"
+                            @onclick="ClaimPackAsync"
+                            disabled="@(!CanClaimPack || _saving)">
+                        @(_saving ? "Opening…" : "🎴 Get a Pack")
+                    </button>
+                </div>
+                <div class="text-muted small">
+                    @if (_lastPackClaim is not null && _lastPackClaim.Value.UtcDateTime.Date >= _today)
+                    {
+                        <span>Pack claimed today — come back tomorrow!</span>
+                    }
+                    else
+                    {
+                        <span>10 cards · 1 Rare guaranteed · 1-in-10 chance of a God Pack (all Legendary)</span>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Pack result display -->
+    @if (_packResult is not null)
+    {
+        <div class="card mb-4 @(_packResult.IsGodPack ? "border-warning" : "border-success")">
+            <div class="card-header @(_packResult.IsGodPack ? "bg-warning bg-opacity-25" : "bg-success bg-opacity-10") d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">
+                    @if (_packResult.IsGodPack)
+                    {
+                        <span>⭐ GOD PACK! ⭐</span>
+                    }
+                    else
+                    {
+                        <span>Pack Opened — @_packResult.Cards.Count cards received</span>
+                    }
+                </span>
+                <button type="button" class="btn-close" @onclick="() => _packResult = null"></button>
+            </div>
+            <div class="card-body">
+                <div class="ct-cards-grid">
+                    @foreach (var (card, instance) in _packResult.Cards)
+                    {
+                        var css = RarityCssClass(card.Rarity);
+                        <div class="ct-card @css">
+                            <div class="ct-card-header">
+                                <span class="ct-set-name" title="@card.SetName">@card.SetName</span>
+                                <span class="ct-rarity-pill">@card.Rarity</span>
+                            </div>
+                            @if (card.ImageUrl is { } url)
+                            {
+                                <img class="ct-card-art" src="@url" alt="@card.PlayerName" />
+                            }
+                            else
+                            {
+                                <div class="ct-card-art"></div>
+                            }
+                            <div class="ct-card-body">
+                                <p class="ct-player-name" title="@card.PlayerName">@card.PlayerName</p>
+                                <p class="ct-player-meta">@(card.PlayerPosition ?? "—") · @(card.TeamName ?? "—")</p>
+                            </div>
+                            <div class="ct-card-footer">
+                                <span class="ct-footer-label">CardTrader</span>
+                                <span class="ct-footer-run">#@instance.PrintNumber / @card.PrintRun.ToString("N0")</span>
+                            </div>
+                        </div>
+                    }
+                </div>
             </div>
         </div>
     }
@@ -91,58 +254,78 @@ else
     }
     else
     {
-        @foreach (var group in FilteredCards.GroupBy(c => c.SetName).OrderBy(g => g.Key))
-        {
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span class="fw-semibold">@group.Key</span>
-                    <span class="badge bg-secondary">@group.Count()</span>
+        <div class="ct-cards-grid">
+            @foreach (var card in FilteredCards.OrderBy(c => RarityOrder(c.Rarity)).ThenBy(c => c.PlayerName))
+            {
+                var css = RarityCssClass(card.Rarity);
+                var isSelected = _mintCard?.Id == card.Id;
+                <div class="ct-card @css @(isSelected ? "ct-card-selected" : "")">
+                    <div class="ct-card-header">
+                        <span class="ct-set-name" title="@card.SetName">@card.SetName</span>
+                        <span class="ct-rarity-pill">@card.Rarity</span>
+                    </div>
+                    @if (card.ImageUrl is { } url)
+                    {
+                        <img class="ct-card-art" src="@url" alt="@card.PlayerName" />
+                    }
+                    else
+                    {
+                        <div class="ct-card-art"></div>
+                    }
+                    <div class="ct-card-body">
+                        <p class="ct-player-name" title="@card.PlayerName">@card.PlayerName</p>
+                        <p class="ct-player-meta">@(card.PlayerPosition ?? "—") · @(card.TeamName ?? "—")</p>
+                    </div>
+                    <div class="ct-card-footer">
+                        <span class="ct-footer-label">CardTrader</span>
+                        <span class="ct-footer-run">/@card.PrintRun.ToString("N0")</span>
+                    </div>
+                    @if (_isAdmin)
+                    {
+                        <div class="ct-card-mint">
+                            <button class="btn btn-sm @(isSelected ? "btn-primary" : "btn-outline-primary") w-100"
+                                    @onclick="() => SelectForMint(card)"
+                                    disabled="@_saving">
+                                @(isSelected ? "Selected" : "Mint")
+                            </button>
+                        </div>
+                    }
                 </div>
-                <div class="card-body p-0">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Player</th>
-                                <th>Position</th>
-                                <th>Team</th>
-                                <th>Rarity</th>
-                                <th class="text-end">Print Run</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var card in group.OrderBy(c => c.PlayerPosition).ThenBy(c => c.PlayerName))
-                            {
-                                <tr>
-                                    <td>@card.PlayerName</td>
-                                    <td>
-                                        @if (card.PlayerPosition is { } pos)
-                                        {
-                                            <span class="badge @PositionClass(pos)">@pos</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">—</span>
-                                        }
-                                    </td>
-                                    <td>@(card.TeamName ?? "—")</td>
-                                    <td><span class="badge @RarityClass(card.Rarity)">@card.Rarity</span></td>
-                                    <td class="text-end">@card.PrintRun.ToString("N0")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        }
+            }
+        </div>
     }
 }
 
 @code {
     private bool _loading = true;
+    private bool _saving;
+    private bool _isAdmin;
+    private string? _error;
+    private string? _success;
+
     private IReadOnlyList<Card> _cards = [];
     private IReadOnlyList<CardInstance> _ownedInstances = [];
+    private IReadOnlyList<Roster> _ownedRosters = [];
     private Dictionary<CardId, Card> _cardLookup = [];
+    private Dictionary<CardInstanceId, string> _pendingRoster = new();
     private string _filter = "";
+
+    // Admin mint state
+    private Card? _mintCard;
+    private int? _mintPrintNumber;
+
+    // Pack state
+    private DateTimeOffset? _lastPackClaim;
+    private PackResult? _packResult;
+    private DateTime _today;
+
+    private bool CanMint =>
+        _mintCard is not null &&
+        _mintPrintNumber is >= 1 &&
+        _mintPrintNumber <= _mintCard.PrintRun;
+
+    private bool CanClaimPack =>
+        !_saving && (_lastPackClaim is null || _lastPackClaim.Value.UtcDateTime.Date < _today);
 
     private IReadOnlyList<Card> FilteredCards =>
         string.IsNullOrEmpty(_filter)
@@ -151,16 +334,117 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _today = DateTime.UtcNow.Date;
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        _isAdmin = auth.User.IsInRole(CardTrader.Identity.CardTraderRoles.Admin);
+
         _cards = await CardSvc.GetAllAsync();
         _cardLookup = _cards.ToDictionary(c => c.Id);
         try
         {
             var userId = await CurrentUser.GetUserIdAsync();
             _ownedInstances = await CardInstanceSvc.GetOwnedAsync(userId);
+            _ownedRosters   = await RosterSvc.GetOwnedAsync(userId);
+            if (!_isAdmin)
+                _lastPackClaim = await PackSvc.GetLastClaimAsync(userId);
         }
         catch { /* unauthenticated — instances stay empty */ }
         _loading = false;
     }
+
+    // ── Roster management (from collection table) ─────────────────────────────
+
+    private async Task RemoveFromRosterAsync(CardInstanceId instanceId, RosterId rosterId)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CardInstanceSvc.RemoveFromRosterAsync(instanceId, userId, rosterId);
+            _success = "Card removed from roster.";
+            _ownedInstances = await CardInstanceSvc.GetOwnedAsync(userId);
+        }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to manage this card."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task AddToRosterAsync(CardInstanceId instanceId, RosterId rosterId)
+    {
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CardInstanceSvc.AddToRosterAsync(instanceId, userId, rosterId);
+            _pendingRoster.Remove(instanceId);
+            _success = "Card added to roster.";
+            _ownedInstances = await CardInstanceSvc.GetOwnedAsync(userId);
+        }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
+        catch (UnauthorizedAccessException) { _error = "You don't have permission to manage this card."; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // ── Admin mint ────────────────────────────────────────────────────────────
+
+    private void SelectForMint(Card card)
+    {
+        _mintCard = card;
+        _mintPrintNumber = null;
+        _error = null;
+        _success = null;
+    }
+
+    private void DismissMint()
+    {
+        _mintCard = null;
+        _mintPrintNumber = null;
+    }
+
+    private async Task MintAsync()
+    {
+        if (!CanMint) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            await CardInstanceSvc.CreateAsync(
+                CardInstanceId.New(), _mintCard!.Id, userId, _mintPrintNumber!.Value);
+            _success = $"Minted #{_mintPrintNumber:N0} of {_mintCard.PlayerName}.";
+            DismissMint();
+            _ownedInstances = await CardInstanceSvc.GetOwnedAsync(userId);
+        }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
+        catch (ArgumentOutOfRangeException) { _error = "Print number is outside the valid range for this card."; }
+        catch (KeyNotFoundException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // ── Pack claim ────────────────────────────────────────────────────────────
+
+    private async Task ClaimPackAsync()
+    {
+        if (!CanClaimPack) return;
+        _error = null; _success = null; _packResult = null; _saving = true;
+        try
+        {
+            var userId = await CurrentUser.GetUserIdAsync();
+            _packResult = await PackSvc.ClaimPackAsync(userId);
+            _lastPackClaim = DateTime.UtcNow;
+            _ownedInstances = await CardInstanceSvc.GetOwnedAsync(userId);
+            _success = _packResult.IsGodPack
+                ? "⭐ GOD PACK! You pulled 10 Legendary cards!"
+                : "Pack opened! 10 new cards added to your collection.";
+        }
+        catch (InvalidOperationException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static string PositionClass(string pos) => pos switch
     {
@@ -178,5 +462,23 @@ else
         "Rare"       => "bg-primary",
         "Uncommon"   => "bg-info text-dark",
         _            => "bg-secondary",
+    };
+
+    private static string RarityCssClass(string rarity) => rarity switch
+    {
+        "Legendary"  => "legendary",
+        "Ultra Rare" => "ultra-rare",
+        "Rare"       => "rare",
+        "Uncommon"   => "uncommon",
+        _            => "common",
+    };
+
+    private static int RarityOrder(string rarity) => rarity switch
+    {
+        "Legendary"  => 0,
+        "Ultra Rare" => 1,
+        "Rare"       => 2,
+        "Uncommon"   => 3,
+        _            => 4,
     };
 }

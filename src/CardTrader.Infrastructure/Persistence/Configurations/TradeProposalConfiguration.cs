@@ -20,6 +20,12 @@ internal sealed class TradeProposalConfiguration : IEntityTypeConfiguration<Trad
         builder.Property(p => p.RecipientId)
             .HasConversion(id => id.Value, guid => new UserId(guid))
             .IsRequired();
+        builder.Property(p => p.InitiatorInstanceId)
+            .HasConversion(id => id.Value, guid => new CardInstanceId(guid))
+            .IsRequired();
+        builder.Property(p => p.RecipientInstanceId)
+            .HasConversion(id => id.Value, guid => new CardInstanceId(guid))
+            .IsRequired();
         builder.Property(p => p.Status)
             .HasConversion<string>()
             .HasMaxLength(20)

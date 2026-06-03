@@ -17,14 +17,14 @@ public class TradeProposalRepositoryTests
     private static (TradeProposalId, UserId, UserId) MakeIds() =>
         (TradeProposalId.New(), UserId.New(), UserId.New());
 
+    private static TradeProposal MakeProposal(TradeProposalId id, UserId initiator, UserId recipient) =>
+        TradeProposal.Create(id, initiator, recipient, CardInstanceId.New(), CardInstanceId.New());
+
     [Fact]
     public async Task GetByIdAsync_ReturnsNull_WhenNotFound()
     {
         await using var ctx = CreateContext(nameof(GetByIdAsync_ReturnsNull_WhenNotFound));
-        var repo = new TradeProposalRepository(ctx);
-
-        var result = await repo.GetByIdAsync(TradeProposalId.New());
-
+        var result = await new TradeProposalRepository(ctx).GetByIdAsync(TradeProposalId.New());
         Assert.Null(result);
     }
 
@@ -33,7 +33,7 @@ public class TradeProposalRepositoryTests
     {
         var dbName = nameof(AddAsync_PersistsProposal);
         var (id, initiator, recipient) = MakeIds();
-        var proposal = TradeProposal.Create(id, initiator, recipient);
+        var proposal = MakeProposal(id, initiator, recipient);
 
         await using (var writeCtx = CreateContext(dbName))
             await new TradeProposalRepository(writeCtx).AddAsync(proposal);
@@ -51,7 +51,7 @@ public class TradeProposalRepositoryTests
     {
         var dbName = nameof(GetByIdAsync_ReturnsProposal_WhenFound);
         var (id, initiator, recipient) = MakeIds();
-        var proposal = TradeProposal.Create(id, initiator, recipient);
+        var proposal = MakeProposal(id, initiator, recipient);
 
         await using (var writeCtx = CreateContext(dbName))
             await new TradeProposalRepository(writeCtx).AddAsync(proposal);
@@ -74,12 +74,9 @@ public class TradeProposalRepositoryTests
         await using (var ctx = CreateContext(dbName))
         {
             var repo = new TradeProposalRepository(ctx);
-            // target is initiator
-            await repo.AddAsync(TradeProposal.Create(TradeProposalId.New(), target, other1));
-            // target is recipient
-            await repo.AddAsync(TradeProposal.Create(TradeProposalId.New(), other1, target));
-            // target not involved
-            await repo.AddAsync(TradeProposal.Create(TradeProposalId.New(), other1, other2));
+            await repo.AddAsync(MakeProposal(TradeProposalId.New(), target, other1));
+            await repo.AddAsync(MakeProposal(TradeProposalId.New(), other1, target));
+            await repo.AddAsync(MakeProposal(TradeProposalId.New(), other1, other2));
         }
 
         await using var readCtx = CreateContext(dbName);
@@ -96,10 +93,7 @@ public class TradeProposalRepositoryTests
         var (id, initiator, recipient) = MakeIds();
 
         await using (var writeCtx = CreateContext(dbName))
-        {
-            var proposal = TradeProposal.Create(id, initiator, recipient);
-            await new TradeProposalRepository(writeCtx).AddAsync(proposal);
-        }
+            await new TradeProposalRepository(writeCtx).AddAsync(MakeProposal(id, initiator, recipient));
 
         await using (var updateCtx = CreateContext(dbName))
         {
@@ -126,9 +120,9 @@ public class TradeProposalRepositoryTests
             var (id2, i2, r2) = MakeIds();
             var (id3, i3, r3) = MakeIds();
 
-            var pending = TradeProposal.Create(id1, i1, r1);
-            var accepted = TradeProposal.Create(id2, i2, r2);
-            var cancelled = TradeProposal.Create(id3, i3, r3);
+            var pending   = MakeProposal(id1, i1, r1);
+            var accepted  = MakeProposal(id2, i2, r2);
+            var cancelled = MakeProposal(id3, i3, r3);
 
             await repo.AddAsync(pending);
             await repo.AddAsync(accepted);

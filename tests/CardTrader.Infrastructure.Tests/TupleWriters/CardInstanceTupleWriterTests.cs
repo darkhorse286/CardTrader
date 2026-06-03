@@ -90,4 +90,38 @@ public sealed class CardInstanceTupleWriterTests
                 t[0].Object == $"{FgaTypes.CardInstance}:{instanceId}"),
             Arg.Any<CancellationToken>());
     }
+
+    // ── CardInstanceOwnershipTransferred ─────────────────────────────────────
+
+    [Fact]
+    public void CanHandle_CardInstanceOwnershipTransferred_ReturnsTrue()
+        => Assert.True(_sut.CanHandle(
+            new CardInstanceOwnershipTransferred(CardInstanceId.New(), UserId.New(), UserId.New())));
+
+    [Fact]
+    public async Task CardInstanceOwnershipTransferred_DeletesOldTupleAndWritesNew()
+    {
+        var instanceId = CardInstanceId.New();
+        var fromOwner  = UserId.New();
+        var toOwner    = UserId.New();
+        var obj        = $"{FgaTypes.CardInstance}:{instanceId}";
+
+        await _sut.HandleAsync(new CardInstanceOwnershipTransferred(instanceId, fromOwner, toOwner));
+
+        await _fga.Received(1).DeleteAsync(
+            Arg.Is<IReadOnlyList<ClientTupleKeyWithoutCondition>>(t =>
+                t.Count == 1 &&
+                t[0].User == $"user:{fromOwner}" &&
+                t[0].Relation == FgaRelations.Owner &&
+                t[0].Object == obj),
+            Arg.Any<CancellationToken>());
+
+        await _fga.Received(1).WriteAsync(
+            Arg.Is<IReadOnlyList<ClientTupleKey>>(t =>
+                t.Count == 1 &&
+                t[0].User == $"user:{toOwner}" &&
+                t[0].Relation == FgaRelations.Owner &&
+                t[0].Object == obj),
+            Arg.Any<CancellationToken>());
+    }
 }

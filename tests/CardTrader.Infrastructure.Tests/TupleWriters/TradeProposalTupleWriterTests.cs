@@ -39,7 +39,7 @@ public sealed class TradeProposalTupleWriterTests
 
     [Fact]
     public void CanHandle_TradeProposalCreated_ReturnsTrue()
-        => Assert.True(_sut.CanHandle(new TradeProposalCreated(TradeProposalId.New(), UserId.New(), UserId.New())));
+        => Assert.True(_sut.CanHandle(new TradeProposalCreated(TradeProposalId.New(), UserId.New(), UserId.New(), CardInstanceId.New(), CardInstanceId.New())));
 
     [Fact]
     public void CanHandle_TradeProposalFacilitatorAssigned_ReturnsTrue()
@@ -62,7 +62,8 @@ public sealed class TradeProposalTupleWriterTests
         var initiatorId = UserId.New();
         var recipientId = UserId.New();
 
-        await _sut.HandleAsync(new TradeProposalCreated(id, initiatorId, recipientId));
+        await _sut.HandleAsync(new TradeProposalCreated(id, initiatorId, recipientId,
+            CardInstanceId.New(), CardInstanceId.New()));
 
         await _fga.Received(1).WriteAsync(
             Arg.Is<IReadOnlyList<ClientTupleKey>>(t =>

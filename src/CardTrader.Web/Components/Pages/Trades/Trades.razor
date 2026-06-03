@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 @inject TradeProposalService TradeSvc
+@inject CardInstanceService CardInstanceSvc
+@inject CardService CardSvc
 @inject ICurrentUser CurrentUser
 @inject IUserLookup UserLookup
 
@@ -25,31 +27,93 @@
 }
 
 <div class="row g-4">
+
+    <!-- Propose a Trade -->
     <div class="col-12">
         <div class="card">
             <div class="card-header">Propose a Trade</div>
             <div class="card-body">
-                <p class="card-text text-muted small">
-                    Enter the email address of the user you want to trade with.
-                    They will receive a pending proposal.
+                <p class="card-text text-muted small mb-3">
+                    Enter the recipient's email, then choose which card you're offering
+                    and which of their cards you want in return.
                 </p>
-                <div class="input-group" style="max-width: 420px">
-                    <input class="form-control"
-                           type="email"
-                           placeholder="recipient@example.com"
-                           @bind="_recipientEmail"
-                           @bind:event="oninput"
-                           @onkeydown="OnProposeKeyDown" />
-                    <button class="btn btn-primary"
-                            @onclick="ProposeAsync"
-                            disabled="@(string.IsNullOrWhiteSpace(_recipientEmail) || _saving)">
-                        Send Proposal
-                    </button>
+
+                <!-- Step 1: recipient lookup -->
+                <div class="row g-3 align-items-end mb-3">
+                    <div class="col-md-5">
+                        <label class="form-label small text-muted mb-1">Recipient email</label>
+                        <div class="input-group">
+                            <input class="form-control"
+                                   type="email"
+                                   placeholder="recipient@example.com"
+                                   @bind="_recipientEmail"
+                                   @bind:event="oninput"
+                                   @onkeydown="OnLookupKeyDown" />
+                            <button class="btn btn-outline-secondary"
+                                    @onclick="LookupRecipientAsync"
+                                    disabled="@(string.IsNullOrWhiteSpace(_recipientEmail) || _saving)">
+                                Find
+                            </button>
+                        </div>
+                    </div>
+                    @if (_recipientId is not null)
+                    {
+                        <div class="col-auto">
+                            <span class="badge bg-success">✓ @_recipientEmail</span>
+                        </div>
+                    }
                 </div>
+
+                <!-- Step 2: card selectors (shown once recipient is found) -->
+                @if (_recipientId is not null)
+                {
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted mb-1">Your card (offering)</label>
+                            <select class="form-select" @bind="_myInstanceId">
+                                <option value="">— select your card —</option>
+                                @foreach (var inst in _myInstances)
+                                {
+                                    var card = _cardLookup.GetValueOrDefault(inst.CardId);
+                                    <option value="@inst.Id.Value">
+                                        @(card?.PlayerName ?? inst.CardId.Value.ToString()[..8])
+                                        (@(card?.Rarity ?? "?"), #@inst.PrintNumber)
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted mb-1">Their card (requesting)</label>
+                            <select class="form-select" @bind="_theirInstanceId">
+                                <option value="">— select their card —</option>
+                                @foreach (var inst in _theirInstances)
+                                {
+                                    var card = _cardLookup.GetValueOrDefault(inst.CardId);
+                                    <option value="@inst.Id.Value">
+                                        @(card?.PlayerName ?? inst.CardId.Value.ToString()[..8])
+                                        (@(card?.Rarity ?? "?"), #@inst.PrintNumber)
+                                    </option>
+                                }
+                            </select>
+                            @if (_theirInstances.Count == 0)
+                            {
+                                <div class="form-text text-muted">This user has no cards yet.</div>
+                            }
+                        </div>
+                        <div class="col-md-auto">
+                            <button class="btn btn-primary"
+                                    @onclick="ProposeAsync"
+                                    disabled="@(!CanPropose || _saving)">
+                                @(_saving ? "Sending…" : "Send Proposal")
+                            </button>
+                        </div>
+                    </div>
+                }
             </div>
         </div>
     </div>
 
+    <!-- Incoming proposals (pending only) -->
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -63,7 +127,7 @@
                 }
                 else if (_incoming.Count == 0)
                 {
-                    <p class="text-muted p-3 mb-0">No incoming proposals.</p>
+                    <p class="text-muted p-3 mb-0">No pending incoming proposals.</p>
                 }
                 else
                 {
@@ -71,7 +135,8 @@
                         <thead class="table-light">
                             <tr>
                                 <th>From</th>
-                                <th>Status</th>
+                                <th>They offer</th>
+                                <th>You give</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -80,21 +145,19 @@
                             {
                                 <tr>
                                     <td>@DisplayEmail(p.InitiatorId)</td>
-                                    <td><span class="badge @StatusClass(p.Status)">@p.Status</span></td>
+                                    <td>@DescribeInstance(p.InitiatorInstanceId)</td>
+                                    <td>@DescribeInstance(p.RecipientInstanceId)</td>
                                     <td class="text-end">
-                                        @if (p.Status == TradeProposalStatus.Pending)
-                                        {
-                                            <button class="btn btn-success btn-sm me-1"
-                                                    @onclick="() => AcceptAsync(p.Id)"
-                                                    disabled="@_saving">
-                                                Accept
-                                            </button>
-                                            <button class="btn btn-outline-danger btn-sm"
-                                                    @onclick="() => DeclineAsync(p.Id)"
-                                                    disabled="@_saving">
-                                                Decline
-                                            </button>
-                                        }
+                                        <button class="btn btn-success btn-sm me-1"
+                                                @onclick="() => AcceptAsync(p.Id)"
+                                                disabled="@_saving">
+                                            Accept
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm"
+                                                @onclick="() => DeclineAsync(p.Id)"
+                                                disabled="@_saving">
+                                            Decline
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -105,6 +168,7 @@
         </div>
     </div>
 
+    <!-- Outgoing proposals (pending only) -->
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -118,7 +182,7 @@
                 }
                 else if (_outgoing.Count == 0)
                 {
-                    <p class="text-muted p-3 mb-0">No outgoing proposals.</p>
+                    <p class="text-muted p-3 mb-0">No pending outgoing proposals.</p>
                 }
                 else
                 {
@@ -126,7 +190,8 @@
                         <thead class="table-light">
                             <tr>
                                 <th>To</th>
-                                <th>Status</th>
+                                <th>You offer</th>
+                                <th>You get</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -135,16 +200,14 @@
                             {
                                 <tr>
                                     <td>@DisplayEmail(p.RecipientId)</td>
-                                    <td><span class="badge @StatusClass(p.Status)">@p.Status</span></td>
+                                    <td>@DescribeInstance(p.InitiatorInstanceId)</td>
+                                    <td>@DescribeInstance(p.RecipientInstanceId)</td>
                                     <td class="text-end">
-                                        @if (p.Status == TradeProposalStatus.Pending)
-                                        {
-                                            <button class="btn btn-outline-danger btn-sm"
-                                                    @onclick="() => CancelAsync(p.Id)"
-                                                    disabled="@_saving">
-                                                Cancel
-                                            </button>
-                                        }
+                                        <button class="btn btn-outline-danger btn-sm"
+                                                @onclick="() => CancelAsync(p.Id)"
+                                                disabled="@_saving">
+                                            Cancel
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -154,6 +217,48 @@
             </div>
         </div>
     </div>
+
+    <!-- Trade history (settled) -->
+    @if (_history.Count > 0)
+    {
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="text-muted">History</span>
+                    <span class="badge bg-secondary">@_history.Count</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0 text-muted small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Direction</th>
+                                <th>Counterparty</th>
+                                <th>You offered</th>
+                                <th>You received</th>
+                                <th>Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in _history)
+                            {
+                                var isInitiator = p.InitiatorId == _currentUserId;
+                                var counterparty = isInitiator ? p.RecipientId : p.InitiatorId;
+                                var offered  = isInitiator ? p.InitiatorInstanceId : p.RecipientInstanceId;
+                                var received = isInitiator ? p.RecipientInstanceId : p.InitiatorInstanceId;
+                                <tr>
+                                    <td>@(isInitiator ? "Outgoing" : "Incoming")</td>
+                                    <td>@DisplayEmail(counterparty)</td>
+                                    <td>@DescribeInstance(offered)</td>
+                                    <td>@DescribeInstance(received)</td>
+                                    <td><span class="badge @StatusClass(p.Status)">@p.Status</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -161,18 +266,39 @@
     private string? _error;
     private string? _success;
     private bool _saving;
-    private string _recipientEmail = "";
+    private UserId _currentUserId;
 
+    // Propose form state
+    private string _recipientEmail = "";
+    private UserId? _recipientId;
+    private string _myInstanceId   = "";
+    private string _theirInstanceId = "";
+
+    // Data
     private List<TradeProposal> _incoming = [];
     private List<TradeProposal> _outgoing = [];
+    private List<TradeProposal> _history  = [];
     private Dictionary<UserId, string> _userEmails = new();
-    private UserId _currentUserId;
+    private IReadOnlyList<CardInstance> _myInstances    = [];
+    private IReadOnlyList<CardInstance> _theirInstances = [];
+    private Dictionary<CardId, Card> _cardLookup = new();
+    // Covers every instance referenced by any proposal, fetched as needed
+    private Dictionary<CardInstanceId, CardInstance> _instanceLookup = new();
+
+    private bool CanPropose =>
+        _recipientId is not null &&
+        !string.IsNullOrEmpty(_myInstanceId) &&
+        !string.IsNullOrEmpty(_theirInstanceId) &&
+        _myInstanceId != _theirInstanceId;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _currentUserId = await CurrentUser.GetUserIdAsync();
+            var allCards = await CardSvc.GetAllAsync();
+            _cardLookup = allCards.ToDictionary(c => c.Id);
+            _myInstances = await CardInstanceSvc.GetOwnedAsync(_currentUserId);
             await LoadProposalsAsync();
         }
         catch (Exception ex) { _error = ex.Message; }
@@ -182,43 +308,73 @@
     private async Task LoadProposalsAsync()
     {
         var all = await TradeSvc.GetInvolvingUserAsync(_currentUserId);
-        _incoming = all.Where(p => p.RecipientId == _currentUserId).ToList();
-        _outgoing = all.Where(p => p.InitiatorId == _currentUserId).ToList();
+        _incoming = all.Where(p => p.RecipientId == _currentUserId && p.Status == TradeProposalStatus.Pending).ToList();
+        _outgoing = all.Where(p => p.InitiatorId == _currentUserId && p.Status == TradeProposalStatus.Pending).ToList();
+        _history  = all.Where(p => p.Status != TradeProposalStatus.Pending)
+                       .OrderByDescending(p => p.Id.Value)
+                       .ToList();
 
+        // Load emails for all participants
         foreach (var id in all.SelectMany(p => new[] { p.InitiatorId, p.RecipientId }).Distinct())
         {
             if (!_userEmails.ContainsKey(id))
                 _userEmails[id] = await UserLookup.GetEmailByIdAsync(id) ?? id.Value.ToString()[..8] + "…";
         }
+
+        // Build instance lookup: seed from owned, then fetch any referenced instances not yet known
+        _instanceLookup = _myInstances.ToDictionary(i => i.Id);
+        var referenced = all
+            .SelectMany(p => new[] { p.InitiatorInstanceId, p.RecipientInstanceId })
+            .Distinct()
+            .Where(id => !_instanceLookup.ContainsKey(id));
+        foreach (var id in referenced)
+        {
+            var inst = await CardInstanceSvc.GetByIdAsync(id);
+            if (inst is not null) _instanceLookup[id] = inst;
+        }
     }
 
-    private string DisplayEmail(UserId id) =>
-        _userEmails.TryGetValue(id, out var email) ? email : id.Value.ToString()[..8] + "…";
-
-    private static string StatusClass(TradeProposalStatus status) => status switch
-    {
-        TradeProposalStatus.Pending  => "bg-warning text-dark",
-        TradeProposalStatus.Accepted => "bg-success",
-        _                            => "bg-secondary",
-    };
-
-    private async Task ProposeAsync()
+    private async Task LookupRecipientAsync()
     {
         if (string.IsNullOrWhiteSpace(_recipientEmail)) return;
-        _error = null; _success = null; _saving = true;
+        _error = null; _recipientId = null; _theirInstances = []; _myInstanceId = ""; _theirInstanceId = "";
+        _saving = true;
         try
         {
-            var recipientId = await UserLookup.FindByEmailAsync(_recipientEmail.Trim());
-            if (recipientId is null)
+            var id = await UserLookup.FindByEmailAsync(_recipientEmail.Trim());
+            if (id is null)
             {
                 _error = $"No account found for '{_recipientEmail.Trim()}'.";
                 return;
             }
-            await TradeSvc.CreateAsync(TradeProposalId.New(), _currentUserId, recipientId.Value);
-            _recipientEmail = "";
+            if (id.Value == _currentUserId)
+            {
+                _error = "You can't trade with yourself.";
+                return;
+            }
+            _recipientId    = id;
+            _theirInstances = await CardInstanceSvc.GetOwnedAsync(id.Value);
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task ProposeAsync()
+    {
+        if (!CanPropose) return;
+        _error = null; _success = null; _saving = true;
+        try
+        {
+            var myId    = new CardInstanceId(Guid.Parse(_myInstanceId));
+            var theirId = new CardInstanceId(Guid.Parse(_theirInstanceId));
+            await TradeSvc.CreateAsync(TradeProposalId.New(), _currentUserId, _recipientId!.Value,
+                myId, theirId);
+            _recipientEmail  = ""; _recipientId = null;
+            _myInstanceId    = ""; _theirInstanceId = ""; _theirInstances = [];
             _success = "Trade proposal sent.";
             await LoadProposalsAsync();
         }
+        catch (UnauthorizedAccessException ex) { _error = ex.Message ?? "You don't own one of the selected cards."; }
         catch (ArgumentException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = ex.Message; }
         finally { _saving = false; }
@@ -230,7 +386,8 @@
         try
         {
             await TradeSvc.AcceptAsync(id, _currentUserId);
-            _success = "Trade accepted.";
+            _success = "Trade accepted — cards have been swapped!";
+            _myInstances = await CardInstanceSvc.GetOwnedAsync(_currentUserId);
             await LoadProposalsAsync();
         }
         catch (UnauthorizedAccessException) { _error = "You don't have permission to accept this trade."; }
@@ -269,8 +426,27 @@
         finally { _saving = false; }
     }
 
-    private async Task OnProposeKeyDown(KeyboardEventArgs e)
+    private async Task OnLookupKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await ProposeAsync();
+        if (e.Key == "Enter") await LookupRecipientAsync();
     }
+
+    private string DisplayEmail(UserId id) =>
+        _userEmails.TryGetValue(id, out var email) ? email : id.Value.ToString()[..8] + "…";
+
+    private string DescribeInstance(CardInstanceId instanceId)
+    {
+        if (!_instanceLookup.TryGetValue(instanceId, out var inst)) return "—";
+        var card = _cardLookup.GetValueOrDefault(inst.CardId);
+        return card is not null
+            ? $"{card.PlayerName} ({card.Rarity}, #{inst.PrintNumber})"
+            : $"#{inst.PrintNumber}";
+    }
+
+    private static string StatusClass(TradeProposalStatus status) => status switch
+    {
+        TradeProposalStatus.Pending  => "bg-warning text-dark",
+        TradeProposalStatus.Accepted => "bg-success",
+        _                            => "bg-secondary",
+    };
 }

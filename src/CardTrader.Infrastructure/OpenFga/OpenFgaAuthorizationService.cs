@@ -14,6 +14,12 @@ internal sealed class OpenFgaAuthorizationService(OpenFgaClientFactory factory) 
             User = user,
             Relation = relation,
             Object = @object,
+            // current_time satisfies the not_expired condition on time-bound tuples.
+            // Extra context is harmless on tuples with no condition.
+            Context = new Dictionary<string, object>
+            {
+                ["current_time"] = DateTimeOffset.UtcNow.ToString("O"),
+            },
         });
         return response.Allowed == true;
     }
