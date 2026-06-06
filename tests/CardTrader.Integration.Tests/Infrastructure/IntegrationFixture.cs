@@ -31,7 +31,7 @@ public sealed class IntegrationFixture : IAsyncLifetime
     {
         _postgresContainer = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
-        _fgaContainer = new ContainerBuilder("openfga/openfga:latest")
+        _fgaContainer = new ContainerBuilder("openfga/openfga:v1.15.1")
             .WithCommand("run")
             .WithEnvironment("OPENFGA_DATASTORE_ENGINE", "memory")
             .WithPortBinding(8080, true)
