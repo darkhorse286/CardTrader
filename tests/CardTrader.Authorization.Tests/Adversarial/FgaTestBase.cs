@@ -61,6 +61,18 @@ public abstract class FgaTestBase : IAsyncLifetime
             User = user, Relation = relation, Object = obj, Context = context,
         })).Allowed == true;
 
+    // ── ListObjects helpers ──────────────────────────────────────────────────
+
+    protected async Task<IReadOnlyList<string>> ListAsync(
+        string user, string relation, string type, object? context = null)
+    {
+        var request = new ClientListObjectsRequest
+        {
+            User = user, Relation = relation, Type = type, Context = context,
+        };
+        return (await Client.ListObjects(request)).Objects ?? [];
+    }
+
     // ── ID generator ────────────────────────────────────────────────────────
 
     protected static string Id() => Guid.NewGuid().ToString("N")[..8];

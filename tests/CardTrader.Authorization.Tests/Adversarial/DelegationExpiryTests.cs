@@ -95,6 +95,37 @@ public sealed class DelegationExpiryTests(OpenFgaFixture fixture)
             $"user:{parent}", FgaRelations.CanView, $"{FgaTypes.TradeProposal}:{proposal}"));
     }
 
+    // ── Scenario E (ListObjects): time-bound delegation and ListObjects ──────
+    //
+    // ListObjectsAsync must pass current_time so that not_expired conditions
+    // are evaluated correctly. Without it, expired delegations produce stale results.
+
+    [Fact]
+    public async Task ListObjects_BeforeExpiry_IncludesProposal()
+    {
+        var (parent, child, deleg, proposal) = (Id(), Id(), Id(), Id());
+        await SetupDelegatedTradeProposal(parent, child, deleg, proposal, timed: true);
+
+        var objects = await ListAsync(
+            $"user:{parent}", FgaRelations.CanView, FgaTypes.TradeProposal,
+            new { current_time = BeforeExpiry });
+
+        Assert.Contains($"{FgaTypes.TradeProposal}:{proposal}", objects);
+    }
+
+    [Fact]
+    public async Task ListObjects_AfterExpiry_ExcludesProposal()
+    {
+        var (parent, child, deleg, proposal) = (Id(), Id(), Id(), Id());
+        await SetupDelegatedTradeProposal(parent, child, deleg, proposal, timed: true);
+
+        var objects = await ListAsync(
+            $"user:{parent}", FgaRelations.CanView, FgaTypes.TradeProposal,
+            new { current_time = AfterExpiry });
+
+        Assert.DoesNotContain($"{FgaTypes.TradeProposal}:{proposal}", objects);
+    }
+
     // ── Setup helper ─────────────────────────────────────────────────────────
 
     private async Task SetupDelegatedTradeProposal(

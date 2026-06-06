@@ -33,6 +33,12 @@ internal sealed class OpenFgaAuthorizationService(OpenFgaClientFactory factory) 
             User = user,
             Relation = relation,
             Type = type,
+            // current_time satisfies the not_expired condition on time-bound tuples.
+            // Matches CheckAsync so both paths apply conditions consistently.
+            Context = new Dictionary<string, object>
+            {
+                ["current_time"] = DateTimeOffset.UtcNow.ToString("O"),
+            },
         }, cancellationToken: cancellationToken);
         return response.Objects ?? [];
     }

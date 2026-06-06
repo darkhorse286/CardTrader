@@ -138,6 +138,26 @@ public class DelegationTradeSupervisionIntegrationTests(IntegrationFixture fixtu
     }
 
     [Fact]
+    public async Task DelegationActivated_AfterTradeProposalCreated_DoesNotGrantSupervisorAccess()
+    {
+        // The tuple writer queries active delegations at trade-creation time.
+        // A delegation activated after the proposal is created is never written
+        // as a supervisor tuple, so the delegator gets no can_cancel access.
+        using var scope = fixture.CreateScope();
+        var delegator = UserId.New(); var delegatee = UserId.New(); var recipient = UserId.New();
+        var delegId = DelegationId.New(); var tradeId = TradeProposalId.New();
+
+        var (iCard, rCard) = await SeedInstancesAsync(scope, delegatee, recipient);
+        await TradeSvc(scope).CreateAsync(tradeId, delegatee, recipient, iCard, rCard);
+
+        // Delegation created and activated only after the proposal already exists.
+        await DelegSvc(scope).CreateAsync(delegId, delegator, delegatee);
+        await DelegSvc(scope).ActivateAsync(delegId, delegator);
+
+        Assert.False(await CanCancel(scope, delegator, tradeId));
+    }
+
+    [Fact]
     public async Task UnrelatedDelegator_CannotCancel()
     {
         using var scope = fixture.CreateScope();
