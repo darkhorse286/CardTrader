@@ -156,7 +156,10 @@ The adversarial suite in `CardTrader.Authorization.Tests/Adversarial/` is the ev
 
 ## Design decisions and known limitations
 
-Significant architectural decisions are recorded as ADRs in [docs/adr/](adr/).
+Significant architectural decisions are recorded as ADRs:
+
+- [ADR 001: OpenFGA as the authorization engine](adr/001-openfga-as-authorization-engine.md) covers why OpenFGA was chosen over OPA, Casbin, Oso, and a custom implementation.
+- [ADR 002: Event-driven tuple writes](adr/002-event-driven-tuple-writes.md) covers why tuple writes are handled by domain event listeners rather than inline in application services.
 
 Production limitations of this PoC are documented in [docs/limitations.md](limitations.md). Read this before using the codebase as a template.
 
